@@ -117,7 +117,6 @@ commonRoutes.get("/get-profile-by-id",authMiddleware,updateLastActivity,async(re
     const {userId} = req.body;
     const user = await UserBase.findById(userId,{lastActivity:0,createdAt:0,updatedAt:0,__t:0,isDeleted:0,isActive:0,isLoggedIn:0,lastLogoutTime:0,userPassword:0});
     res.status(200).json({message:"success",data:user})
-
   }
   catch(error){
     res.status(500).json({message:"failure",data:error.message})
