@@ -7,11 +7,12 @@ const paymentSchema = mongoose.Schema(
     profileCount: { type: String },
     isApproved: { type: Boolean, default: false },
     amountPaid: { type: Number },
+    transactionId:{type:String},
     validTill: { type: Date },
     userId: { type: String },
     userEmail: { type: String },
     referenceCode: { type: String },
-    totalProfilesViewed: { type: Number },
+    totalProfilesViewed: { type: Number, default:0 },
     savedProfiles: { type: [String], default: [] },
     approvalTimestamp: { type: Date },
     isPaymentSettled: { type: Boolean, default: false }

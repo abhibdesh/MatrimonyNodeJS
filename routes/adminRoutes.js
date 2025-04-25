@@ -5,6 +5,8 @@ import UserBase from "../models/UserBase.js";
 import Candidate from "../models/User.js";
 import { Router } from "express";
 import Admin from "../models/AdminBase.js";
+import Payment from "../models/Payment.js";
+import moment from "moment-timezone";
 
 
 const adminRoutes = Router();
@@ -56,6 +58,68 @@ adminRoutes.get("/get-users-without-community",authMiddleware,updateLastActivity
 
 adminRoutes.post("/assign-community-to-candidate",authMiddleware,updateLastActivity,async(req,res)=>{});
 
+
+adminRoutes.get("/get-my-references",authMiddleware,updateLastActivity,async(req,res)=>{
+    try {
+      if (req.user.__t !== "admin") {
+        res.status(401).json({ message: "failure", data: "You are unauthorised to get the references",
+        });
+      } else {
+        const user = req.user._id;
+        const {rowsPerPage, pageNumber} = req.body;
+        const currentUser = await Admin.findById(user);
+        const references = await Payment.find({ referenceCode: currentUser.referenceCode, isApproved: true}).sort({ approvalTimestamp: -1 }).skip((pageNumber-1)*rowsPerPage).limit(rowsPerPage);
+        const totalCount = await Payment.countDocuments({ referenceCode: currentUser.referenceCode, isApproved: true});
+        console.log(totalCount)
+        const localTimezone = "Asia/Kolkata";
+        const atm = moment().tz(localTimezone);
+        const currentMonth = atm.month() + 1;
+        const currentYear = atm.year();
+
+        const result = await Payment.aggregate([
+            {
+              $match: {
+                referenceCode: currentUser.referenceCode,
+                isApproved: true,
+                isPaymentSettled: false
+              }
+            },
+            {
+              $addFields: {
+                approvalMonth: { $month: "$approvalTimestamp" },
+                approvalYear: { $year: "$approvalTimestamp" }
+              }
+            },
+            {
+              $match: {
+                approvalMonth: currentMonth,
+                approvalYear: currentYear
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                unsettledAmount: { $sum: "$amountPaid" }
+              }
+            }
+          ]);
+          
+        const unsettledAmount = result[0]?.unsettledAmount || 0;
+        let originalPayableAmount = (unsettledAmount * currentUser.percentageShare)/100
+
+        const data = {
+          references: references,
+          unsettledAmount: Math.ceil(originalPayableAmount),
+          percentageShare: currentUser.percentageShare,
+          total: totalCount
+        };
+        res.status(200).json({ message: "success", data: data });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "failure", data: error.message });
+    }
+});
+
 adminRoutes.get("/get-my-community-list",authMiddleware,updateLastActivity,async(req,res)=>{
     try{
         if(req.user.__t === "admin"){
@@ -67,5 +131,7 @@ adminRoutes.get("/get-my-community-list",authMiddleware,updateLastActivity,async
         res.status(500).json({message:"failure",data:error.message})
     }
 })
+
+
 
 export default adminRoutes;

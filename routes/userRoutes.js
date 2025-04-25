@@ -112,5 +112,70 @@ userRoutes.post("/update-my-profile",authMiddleware,updateLastActivity,async(req
   }
 });
 
+userRoutes.get("/get-preferences",authMiddleware, updateLastActivity, async(req,res)=>{
+
+  try{
+    if(req.user.__t === "candidate"){
+      const user = await Candidate.findById(req.user._id,{expectedEducations:1,expectedIncome:1,expectedEatingHabits:1,expectedGana:1,expectedNakshatra:1,expectedAgeGapMin:1,expectedAgeGapMax:1,expectedBloodGroups:1,expectedNaadi:1,expectedRaas:1,expectedHeight:1,expectedFamilyType:1,expectedSiblingsCousinsUpto:1,profileWithImages:1,strictMatch:1});
+      res.status(200).json({message:"success",data:user})
+    }
+    else{
+      res.status(200).json({message:"failure",data:"You are unauthorised to get preferences"})
+    }
+   
+  }
+  catch(error){
+    res.status(500).json({message:"failure",data:error.message})
+  }
+
+});
+
+userRoutes.post("/update-preferences",authMiddleware,updateLastActivity,async(req,res)=>{
+  try{
+
+    const {
+      expectedEducations,
+      expectedIncome,
+      expectedEatingHabits,
+      expectedGana,
+      expectedNakshatra,
+      expectedAgeGapMin,
+      expectedAgeGapMax,
+      expectedBloodGroups,
+      expectedNaadi,
+      expectedRaas,
+      expectedHeight,
+      expectedFamilyType,
+      expectedSiblingsCousinsUpto,
+      profileWithImages,
+      strictMatch,
+    } = req.body;
+    
+    await Candidate.findByIdAndUpdate(req.user._id,{
+      expectedEducations:expectedEducations,
+      expectedIncome:expectedIncome,
+      expectedEatingHabits:expectedEatingHabits,
+      expectedGana:expectedGana,
+      expectedNakshatra:expectedNakshatra,
+      expectedAgeGapMin:expectedAgeGapMin,
+      expectedAgeGapMax:expectedAgeGapMax,
+      expectedBloodGroups:expectedBloodGroups,
+      expectedNaadi:expectedNaadi,
+      expectedRaas:expectedRaas,
+      expectedHeight:expectedHeight,
+      expectedFamilyType:expectedFamilyType,
+      expectedSiblingsCousinsUpto:expectedSiblingsCousinsUpto,
+      profileWithImages:profileWithImages,
+      strictMatch:strictMatch,
+    });
+
+    res.status(200).json({message:"success",data:"Your preferences are updated successfully"})
+
+  }
+  catch(error){
+    res.status(500).json({message:"failure",data:error.message})
+  }
+});
+
 
 export default userRoutes;

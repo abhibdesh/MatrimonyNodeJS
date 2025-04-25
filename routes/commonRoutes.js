@@ -307,6 +307,20 @@ commonRoutes.post( "/change-password", authMiddleware, updateLastActivity, async
     res.status(500).json({message:"failure",data:error.message})
   }
   console.log(currentUser)
-}
-);
+});
+
+
+// This will be used to validate id the user is putting right reference code
+commonRoutes.get("/get-unique-reference-codes",async(req,res)=>{
+  try{
+
+    const refCodes = await UserBase.find({__t:"admin"}).distinct("referenceCode");
+    res.status(200).json({message:"success",data:refCodes});
+    
+  }
+  catch(error){
+    res.status(500).json({message:"failure",data:error.message})
+  }
+});
+
 export default commonRoutes;

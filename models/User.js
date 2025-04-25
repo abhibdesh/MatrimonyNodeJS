@@ -57,10 +57,10 @@ const CandidateSchema = new mongoose.Schema(
     expectedHeight: { type: Number, default: 0 },
     expectedFamilyType: { type: Array, default: [] },
     expectedSiblingsCousinsUpto: { type: Number },
-    userPaid: { type: Boolean, default: false },
     profileWithImages: { type: Boolean, default: true },
-    readTCP: { type: Boolean, default: true },
     strictMatch: { type: Boolean, default: true },
+    userPaid: { type: Boolean, default: false },
+    readTCP: { type: Boolean, default: true }
   },
   { _id: false }
 );

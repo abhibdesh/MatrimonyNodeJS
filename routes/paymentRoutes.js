@@ -89,6 +89,17 @@ paymentRoutes.post( "/generate-qr-code", authMiddleware, updateLastActivity, asy
       const note = "Plan period " + planDuration + " Profile Count " + profileCount + " Transaction " + transactionId
       const upiLink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent("Fyjix")}&mc=&tid=${transactionId}&tr=${transactionId}&tn=${encodeURIComponent(note)}&am=${amountPaid}&cu=INR`;
       console.log(upiLink)  
+      await Payment.create({
+        payerName : candidate.firstName + " " + candidate.lastName,
+        planDuration: planDuration,
+        profileCount:profileCount,
+        amountPaid:amountPaid,
+        validTill:validTill,
+        userId: candidate._id,
+        userEmail: candidate.userEmail,
+        referenceCode:candidate.referenceCode,
+        transactionId:transactionId
+      })
       const image = await QRCode.toDataURL(upiLink, { errorCorrectionLevel: "H" });
       res.status(200).json({
         message: "success",

@@ -5,10 +5,14 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import authMiddleware from "../middleware/auth.js";
 import mongoose from "mongoose";
+import updateLastActivity from "../middleware/updateLastActivity.js";
+import Payment from "../models/Payment.js";
+import moment from "moment-timezone";
+
 
 const ownerRoutes = express.Router();
 
-ownerRoutes.post("/add-admin", async (req, res) => {
+ownerRoutes.post("/add-admin",authMiddleware,updateLastActivity, async (req, res) => {
   try {
     const { firstName, lastName, userEmail, phoneNumber, userPassword, communityList, percentageShare} =
       req.body;
@@ -42,6 +46,116 @@ ownerRoutes.post("/add-admin", async (req, res) => {
     console.log(error);
     res.status(500).json({ message: "failure", data: error.message });
   }
+});
+
+
+ownerRoutes.get("/get-payments-to-approve",authMiddleware,updateLastActivity,async(req,res)=>{
+  
+});
+
+ownerRoutes.get( "/get-payment-settlement", authMiddleware, updateLastActivity, async (req, res) => {
+    try {
+      const localTimezone = "Asia/Kolkata";
+      const atm = moment().tz(localTimezone);
+      const currentMonth = atm.month() + 1;
+      const currentYear = atm.year();
+      const result = await Payment.aggregate([
+        {
+          $match: {
+            isApproved: true,
+            isPaymentSettled: false,
+          },
+        },
+        {
+          $addFields: {
+            approvalMonth: { $month: "$approvalTimestamp" },
+            approvalYear: { $year: "$approvalTimestamp" },
+          },
+        },
+        {
+          $match: {
+            approvalMonth: currentMonth,
+            approvalYear: currentYear,
+          },
+        },
+        {
+          $group: {
+            _id: "$referenceCode", 
+            unsettledAmount: { $sum: "$amountPaid" },
+          },
+        },
+        {
+          $lookup: {
+            from: "User", 
+            let: { refCode: "$_id" },
+            pipeline: [
+              {
+                $match: {
+                  $expr: {
+                    $and: [
+                      { $eq: ["$referenceCode", "$$refCode"] },
+                      { $eq: ["$__t", "admin"] }, 
+                    ],
+                  },
+                },
+              },
+            ],
+            as: "adminData",
+          },
+        },
+        {
+          $unwind: {
+            path: "$adminData",
+            preserveNullAndEmptyArrays: false, 
+          },
+        },
+        {
+          $addFields: {
+            percentageShare: "$adminData.percentageShare",
+            payableAmount: {
+              $ceil: {
+                $divide: [
+                  { $multiply: ["$unsettledAmount", "$adminData.percentageShare"] },
+                  100,
+                ],
+              },
+            },
+          },
+        },
+        {
+          $project: {
+            referenceCode: "$_id",
+            unsettledAmount: 1,
+            percentageShare: 1,
+            payableAmount: 1,
+            _id: 0,
+          },
+        },
+      ]);
+      
+      
+      
+      res.status(200).json({ message:"success", data:result });
+    } catch (error) {
+      res.status(500).json({ message: "failure", data: error.message });
+    }
+  }
+);
+
+ownerRoutes.post("/approve-payments",authMiddleware,updateLastActivity,async(req,res)=>{
+    try{
+      const {transaction} = req.body;
+      const localTimezone = "Asia/Kolkata"; // or your preferred TZ
+      const atm = moment().tz(localTimezone);
+      await Payment.findByIdAndUpdate(transaction,{
+        isApproved:true,
+        approvalTimestamp:atm
+      })
+      res.status(200).json({message:"success",data:"This payment has been approved successfully."})
+    }
+    catch(error){
+      res.status(500).json({message:"failure",data:error.message})
+    }
 });
 
 export default ownerRoutes;
