@@ -8,6 +8,9 @@ import multer from "multer";
 import { Readable } from "stream";
 import updateLastActivity from "../middleware/updateLastActivity.js";
 import Candidate from "../models/User.js";
+import Payment from "../models/Payment.js";
+import { stringify } from "querystring";
+import moment from "moment-timezone";
 
 
 const userRoutes = express.Router();
@@ -113,7 +116,6 @@ userRoutes.post("/update-my-profile",authMiddleware,updateLastActivity,async(req
 });
 
 userRoutes.get("/get-preferences",authMiddleware, updateLastActivity, async(req,res)=>{
-
   try{
     if(req.user.__t === "candidate"){
       const user = await Candidate.findById(req.user._id,{expectedEducations:1,expectedIncome:1,expectedEatingHabits:1,expectedGana:1,expectedNakshatra:1,expectedAgeGapMin:1,expectedAgeGapMax:1,expectedBloodGroups:1,expectedNaadi:1,expectedRaas:1,expectedHeight:1,expectedFamilyType:1,expectedSiblingsCousinsUpto:1,profileWithImages:1,strictMatch:1});
@@ -132,7 +134,6 @@ userRoutes.get("/get-preferences",authMiddleware, updateLastActivity, async(req,
 
 userRoutes.post("/update-preferences",authMiddleware,updateLastActivity,async(req,res)=>{
   try{
-
     const {
       expectedEducations,
       expectedIncome,
@@ -168,14 +169,68 @@ userRoutes.post("/update-preferences",authMiddleware,updateLastActivity,async(re
       profileWithImages:profileWithImages,
       strictMatch:strictMatch,
     });
-
     res.status(200).json({message:"success",data:"Your preferences are updated successfully"})
-
   }
   catch(error){
     res.status(500).json({message:"failure",data:error.message})
   }
 });
+
+userRoutes.get("/get-my-saved-profiles",authMiddleware,updateLastActivity,async(req,res)=>{
+  try{
+    if(req.user.__t === "candidate"){
+      const paymentData = await Payment.find({ "userEmail": req.user.userEmail });
+      res.status(200).json({message:"success",data:paymentData})
+  
+    }
+    else{
+      res.status(200).json({message:"failure", data:"You are unauthorised to fetch saved profiles"})
+    }
+  }
+  catch(error){
+    res.status(500).json({message:"failure",data:error.message});
+  }
+});
+
+userRoutes.post("/add-to-my-saved-profile",authMiddleware,updateLastActivity,async(req,res)=>{
+  try{
+    if(req.user.__t === "candidate"){
+      const { userIdToAdd } = req.body;
+      const getLastPayment = await Payment.findOne({ userEmail: req.user.userEmail }).sort({ CreatedDate: -1 });
+      const localTimezone = "Asia/Kolkata";
+      const atm = moment().tz(localTimezone);
+      if(getLastPayment.isApproved === true){
+        if(getLastPayment.validTill > atm){
+          if(getLastPayment.profileCount !== "Unlimited"){
+            const count =  getLastPayment.profileCount.toInt32();
+            if(length(getLastPayment.savedProfiles) >= count){
+              res.status(200).json({message:"failure",data:"You have exhausted your profile limit."})
+            }
+            else{
+              await Payment.updateOne({"_id":getLastPayment._id},{"$addToSet": { "savedProfiles": userIdToAdd },$inc:{ totalProfilesViewed: 1 }})
+              res.status(200).json({message:"success",data:"Profile added successfully"})
+            }
+          }
+          else{
+            await Payment.updateOne({"_id":getLastPayment._id},{"$addToSet": { "savedProfiles": userIdToAdd },$inc:{ totalProfilesViewed: 1}})
+            res.status(200).json({message:"success",data:"Profile added successfully"})
+          }
+        }
+        res.status(401).json({message:"failure",data:"Your plan has expired.Please check the validity."})
+      }
+      else{
+        res.status(401).json({message:"failure",data:"Your payment is still under review"})
+      }
+    }
+    else{
+      res.status(401).json({message:"failure",data:"You are unauthorised to save profiles"});
+    }
+  }
+  catch(error){
+    res.status(500).json({message:"failure",data:error.message});
+  }
+});
+
 
 
 export default userRoutes;

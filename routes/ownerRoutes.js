@@ -1,4 +1,4 @@
-import express from "express";
+import express, { Router } from "express";
 import UserBase from "../models/UserBase.js";
 import Admin from "../models/AdminBase.js";
 import bcrypt from "bcrypt";
@@ -81,7 +81,7 @@ ownerRoutes.get( "/get-payment-settlement", authMiddleware, updateLastActivity, 
         {
           $group: {
             _id: "$referenceCode", 
-            unsettledAmount: { $sum: "$amountPaid" },
+            unsettledAmount: { $sum: "$amountPaid" }
           },
         },
         {
@@ -156,6 +156,19 @@ ownerRoutes.post("/approve-payments",authMiddleware,updateLastActivity,async(req
     catch(error){
       res.status(500).json({message:"failure",data:error.message})
     }
+});
+
+ownerRoutes.post("/mark-settlement-as-done",authMiddleware,updateLastActivity,async(req,res)=>{
+
+  try{
+    const {referenceCode} = req.body;
+    await Payment.updateMany({"referenceCode":referenceCode},{$set:{isPaymentSettled:true}});
+    res.status(200).json({message:"success",data:"Payment Settlement Marked successfully"})
+  }
+  catch(error){
+    res.status(500).json({message:"failure",data:error.message})
+  }
+
 });
 
 export default ownerRoutes;

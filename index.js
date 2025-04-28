@@ -9,6 +9,7 @@ import { GridFSBucket } from 'mongodb';
 import dotenv from 'dotenv';
 import adminRoutes from "./routes/adminRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
+import cronjobRoutes from "./routes/cronjobRoutes.js"
 
 dotenv.config();
 
@@ -57,6 +58,7 @@ app.use("/api/common", commonRoutes);
 app.use("/api/owner", ownerRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/payment", paymentRoutes);
+app.use("/api/cronjobRoutes", cronjobRoutes);
 
 // Start server
 app.listen(PORT, () => {

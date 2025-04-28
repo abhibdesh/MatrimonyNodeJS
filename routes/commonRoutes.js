@@ -12,6 +12,7 @@ const commonRoutes = express.Router();
 
 commonRoutes.post("/user-login", async (req, res) => {
   try {
+    console.log(req)
     const { userEmail, userPassword } = req.body;
     const user = await UserBase.findOne({ userEmail });
 
@@ -321,6 +322,10 @@ commonRoutes.get("/get-unique-reference-codes",async(req,res)=>{
   catch(error){
     res.status(500).json({message:"failure",data:error.message})
   }
+});
+
+commonRoutes.post("/logout-user",authMiddleware,updateLastActivity,async(req,res)=>{
+    
 });
 
 export default commonRoutes;
