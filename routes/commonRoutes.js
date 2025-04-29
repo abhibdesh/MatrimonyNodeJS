@@ -6,13 +6,13 @@ import jwt from "jsonwebtoken";
 import authMiddleware from "../middleware/auth.js";
 import updateLastActivity from "../middleware/updateLastActivity.js";
 import mongoose from "mongoose";
+import nodemailer from "nodemailer";
 import Admin from "../models/AdminBase.js";
 
 const commonRoutes = express.Router();
 
 commonRoutes.post("/user-login", async (req, res) => {
   try {
-    console.log(req)
     const { userEmail, userPassword } = req.body;
     const user = await UserBase.findOne({ userEmail });
 
@@ -43,9 +43,10 @@ commonRoutes.post("/user-login", async (req, res) => {
     await UserBase.findByIdAndUpdate(user._id, { accessToken: token });
 
     res.cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "Lax",
+      httpOnly: true, // Prevent access from JavaScript (security)
+      // secure: true,    // Use HTTPS (for production)
+      // sameSite: "None", // Prevent CSRF attacks
+      sameSite: "Lax", // For localhost
       maxAge: 24 * 60 * 60 * 1000,
     });
 
@@ -60,32 +61,72 @@ commonRoutes.post("/user-login", async (req, res) => {
 });
 
 // TODO: Need to work on filters and add preferences
-commonRoutes.get( "/get-all-users", authMiddleware, updateLastActivity, async (req, res) => {
+commonRoutes.post( "/get-all-users", authMiddleware, updateLastActivity, async (req, res) => {
     try {
-      const {filters, rowsPerPage,pageNumber} = req.body;
+      const { filters, rowsPerPage, pageNumber } = req.body;
       const currentUser = req.user._id;
-      if(req.user.__t === "candidate"){
+      if (req.user.__t === "candidate") {
         const candidate = await Candidate.findById(currentUser);
         const updatedFilter = filters;
         updatedFilter.__t = "candidate";
-        updatedFilter.lookingFor = candidate.lookingFor === "Bride" ? "Groom" : "Bride";
+        updatedFilter.lookingFor =
+          candidate.lookingFor === "Bride" ? "Groom" : "Bride";
         updatedFilter.community = candidate.community;
         const totalCount = await Candidate.countDocuments(updatedFilter);
-        const users = await Candidate.find( updatedFilter ,{_id:1,firstName:1,lastName:1,birthDate:1,birthTime:1,birthPlace:1,incomeGroup:1,addressInShort:1,community:1}).skip((pageNumber-1)*rowsPerPage).limit(rowsPerPage);
-        res.status(200).json({message:"success",data:users,totalCount:totalCount});
+        const users = await Candidate.find(updatedFilter, {
+          _id: 1,
+          firstName: 1,
+          lastName: 1,
+          birthDate: 1,
+          birthTime: 1,
+          birthPlace: 1,
+          incomeGroup: 1,
+          addressInShort: 1,
+          community: 1,
+          isVerified:1
+        })
+          .skip((pageNumber - 1) * rowsPerPage)
+          .limit(rowsPerPage);
+        res
+          .status(200)
+          .json({ message: "success", data: users, totalCount: totalCount });
       }
-      if(req.user.__t === "admin"){
+      if (req.user.__t === "admin") {
         const admin = await Admin.findById(req.user._id);
         const updatedFilter = filters;
         updatedFilter.__t = "candidate";
         updatedFilter.referenceCode = admin.referenceCode;
-        const users = await Candidate.find( updatedFilter ,{_id:1,firstName:1,lastName:1,birthDate:1,birthTime:1,birthPlace:1,incomeGroup:1,addressInShort:1,community:1});
-        res.status(200).json({message:"success",data:users});
+        const users = await Candidate.find(updatedFilter, {
+          _id: 1,
+          firstName: 1,
+          lastName: 1,
+          birthDate: 1,
+          birthTime: 1,
+          birthPlace: 1,
+          incomeGroup: 1,
+          addressInShort: 1,
+          community: 1,
+          isVerified:1
+        }).skip((pageNumber - 1) * rowsPerPage).limit(rowsPerPage);
+        res.status(200).json({ message: "success", data: users });
       }
-      if(req.user.__t === "owner"){
-        const users = await UserBase.find({ _id: { $ne: currentUser } },{_id:1,firstName:1,lastName:1,birthDate:1,birthTime:1,birthPlace:1,incomeGroup:1,addressInShort:1});
-        res.status(200).json({message:"success",data:users});
-      }  
+      if (req.user.__t === "owner") {
+        const users = await UserBase.find(
+          { _id: { $ne: currentUser } },
+          {
+            _id: 1,
+            firstName: 1,
+            lastName: 1,
+            birthDate: 1,
+            birthTime: 1,
+            birthPlace: 1,
+            incomeGroup: 1,
+            addressInShort: 1,
+            isVerified:1
+          }
+        ).skip((pageNumber - 1) * rowsPerPage).limit(rowsPerPage);
+        res.status(200).json({ message: "success", data: users });
+      }
     } catch (error) {
       res.status(500).json({ message: error.message });
     }
@@ -96,34 +137,45 @@ commonRoutes.post("/user-log-out", async (req, res) => {
   UserBase.findByIdAndUpdate(req.user._id, {});
 });
 
-
-commonRoutes.get("/get-my-profile",authMiddleware,updateLastActivity,async(req,res)=>{
-
-  try{
-    const user = await UserBase.findById(req.user._id);
-    res.status(200).json({message:"success",data:user})
-
+commonRoutes.get(
+  "/get-my-profile",
+  authMiddleware,
+  updateLastActivity,
+  async (req, res) => {
+    try {
+      const user = await UserBase.findById(req.user._id);
+      res.status(200).json({ message: "success", data: user });
+    } catch (error) {
+      res.status(500).json({ message: "failure", data: error.message });
+    }
   }
-  catch(error){
-    res.status(500).json({message:"failure",data:error.message})
-  }
-
-});
-
+);
 
 // TODO : Will be changed after payment plan APIs will be completed
-commonRoutes.get("/get-profile-by-id",authMiddleware,updateLastActivity,async(req,res)=>{
-
-  try{
-    const {userId} = req.body;
-    const user = await UserBase.findById(userId,{lastActivity:0,createdAt:0,updatedAt:0,__t:0,isDeleted:0,isActive:0,isLoggedIn:0,lastLogoutTime:0,userPassword:0});
-    res.status(200).json({message:"success",data:user})
+commonRoutes.get(
+  "/get-profile-by-id",
+  authMiddleware,
+  updateLastActivity,
+  async (req, res) => {
+    try {
+      const { userId } = req.body;
+      const user = await UserBase.findById(userId, {
+        lastActivity: 0,
+        createdAt: 0,
+        updatedAt: 0,
+        __t: 0,
+        isDeleted: 0,
+        isActive: 0,
+        isLoggedIn: 0,
+        lastLogoutTime: 0,
+        userPassword: 0,
+      });
+      res.status(200).json({ message: "success", data: user });
+    } catch (error) {
+      res.status(500).json({ message: "failure", data: error.message });
+    }
   }
-  catch(error){
-    res.status(500).json({message:"failure",data:error.message})
-  }
-
-});
+);
 
 commonRoutes.post("/add-new-candidate", async (req, res) => {
   try {
@@ -280,52 +332,78 @@ commonRoutes.post("/forgot-password", async (req, res) => {
         newPassword += characters.charAt(randomInd);
       }
       const hashedPassword = await bcrypt.hash(newPassword, 10);
-      const user = await UserBase.findOneAndUpdate(
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.GMAIL_USER,
+          pass: process.env.GMAIL_PASS,
+        },
+      });
+
+      const mailOptions = {
+        from: process.env.GMAIL_USER,
+        to: userEmail,
+        subject: "Password Change Request",
+        html: `
+          <p>Your new password is: <strong>${newPassword}</strong></p>
+          <p>Please log in and change your password from the "Change Password" menu.</p>
+        `,
+      };
+      transporter
+        .sendMail(mailOptions)
+        .then((info) => console.log("Email sent:", info.response))
+        .catch((error) => console.error("Error sending email:", error));
+        await UserBase.findOneAndUpdate(
         { userEmail: userEmail },
         { $set: { userPassword: hashedPassword } }
       );
-      res
-        .status(200)
-        .json({
-          message: "success",
-          data: "Your new password has been mailed on your registered email.",
-          newPassword: newPassword,
-        });
+      res.status(200).json({
+        message: "success",
+        data: "Your new password has been mailed on your registered email.",
+        newPassword: newPassword,
+      });
     }
   } catch (error) {
+    console.log(error);
     res.status(500).json({ message: "failure", data: error.message });
   }
 });
 
 commonRoutes.post( "/change-password", authMiddleware, updateLastActivity, async (req, res) => {
-  const {newPassword} = req.body;
-  const currentUser = req.user._id;
-  try{
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await UserBase.findByIdAndUpdate(req.user._id,{$set:{userPassword:hashedPassword}})
-    res.status(200).json({message:"success",data:"Password changed successfully"})
-  }catch(error){
-    res.status(500).json({message:"failure",data:error.message})
+    const { newPassword } = req.body;
+    const currentUser = req.user._id;
+    try {
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+      await UserBase.findByIdAndUpdate(req.user._id, {
+        $set: { userPassword: hashedPassword },
+      });
+      res
+        .status(200)
+        .json({ message: "success", data: "Password changed successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "failure", data: error.message });
+    }
+    console.log(currentUser);
   }
-  console.log(currentUser)
-});
-
+);
 
 // This will be used to validate id the user is putting right reference code
-commonRoutes.get("/get-unique-reference-codes",async(req,res)=>{
-  try{
-
-    const refCodes = await UserBase.find({__t:"admin"}).distinct("referenceCode");
-    res.status(200).json({message:"success",data:refCodes});
-    
-  }
-  catch(error){
-    res.status(500).json({message:"failure",data:error.message})
+commonRoutes.get("/get-unique-reference-codes", async (req, res) => {
+  try {
+    const refCodes = await UserBase.find({ __t: "admin" }).distinct(
+      "referenceCode"
+    );
+    res.status(200).json({ message: "success", data: refCodes });
+  } catch (error) {
+    res.status(500).json({ message: "failure", data: error.message });
   }
 });
 
-commonRoutes.post("/logout-user",authMiddleware,updateLastActivity,async(req,res)=>{
-    
-});
+commonRoutes.post(
+  "/logout-user",
+  authMiddleware,
+  updateLastActivity,
+  async (req, res) => {}
+);
 
 export default commonRoutes;
