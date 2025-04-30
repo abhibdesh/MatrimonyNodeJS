@@ -8,6 +8,7 @@ import mongoose from "mongoose";
 import updateLastActivity from "../middleware/updateLastActivity.js";
 import Payment from "../models/Payment.js";
 import moment from "moment-timezone";
+import MenuMaster from "../models/MenuMaster.js";
 
 
 const ownerRoutes = express.Router();
@@ -169,6 +170,18 @@ ownerRoutes.post("/mark-settlement-as-done",authMiddleware,updateLastActivity,as
     res.status(500).json({message:"failure",data:error.message})
   }
 
+});
+
+ownerRoutes.post("/add-new-menu",authMiddleware,updateLastActivity,async(req,res)=>{
+  try {
+    const { displayName, path, __t, priority } = req.body;
+    await MenuMaster.create({ displayName: displayName, path: path, __t: __t, priority: priority });
+    res
+      .status(200)
+      .json({ message: "success", data: "Menu created succesfully" });
+  } catch (error) {
+    res.status(500).json({ message: "failure", data: error.message });
+  }
 });
 
 export default ownerRoutes;

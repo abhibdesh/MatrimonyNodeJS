@@ -130,8 +130,7 @@ adminRoutes.get("/get-my-community-list",authMiddleware,updateLastActivity,async
     catch(error){
         res.status(500).json({message:"failure",data:error.message})
     }
-})
-
+});
 
 
 export default adminRoutes;

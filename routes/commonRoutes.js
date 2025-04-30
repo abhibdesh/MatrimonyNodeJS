@@ -8,6 +8,7 @@ import updateLastActivity from "../middleware/updateLastActivity.js";
 import mongoose from "mongoose";
 import nodemailer from "nodemailer";
 import Admin from "../models/AdminBase.js";
+import MenuMaster from "../models/MenuMaster.js";
 
 const commonRoutes = express.Router();
 
@@ -60,6 +61,20 @@ commonRoutes.post("/user-login", async (req, res) => {
   }
 });
 
+commonRoutes.get("/get-menu-master",authMiddleware,updateLastActivity,async(req,res)=>{
+  try{
+    const menu = await MenuMaster.find({__t:req.user.__t},{_id:0,displayName:1,path:1,priority:1}).sort({priority:1});
+    res.status(200).json({
+      message: "success",
+      data: menu,
+    });
+  }
+  catch(error){
+    console.error(error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
 // TODO: Need to work on filters and add preferences
 commonRoutes.post( "/get-all-users", authMiddleware, updateLastActivity, async (req, res) => {
     try {
@@ -96,6 +111,7 @@ commonRoutes.post( "/get-all-users", authMiddleware, updateLastActivity, async (
         const updatedFilter = filters;
         updatedFilter.__t = "candidate";
         updatedFilter.referenceCode = admin.referenceCode;
+        const totalCount = await Candidate.countDocuments(updatedFilter);
         const users = await Candidate.find(updatedFilter, {
           _id: 1,
           firstName: 1,
@@ -108,9 +124,10 @@ commonRoutes.post( "/get-all-users", authMiddleware, updateLastActivity, async (
           community: 1,
           isVerified:1
         }).skip((pageNumber - 1) * rowsPerPage).limit(rowsPerPage);
-        res.status(200).json({ message: "success", data: users });
+        res.status(200).json({ message: "success", data: users, totalCount:totalCount});
       }
       if (req.user.__t === "owner") {
+        const totalCount = await Candidate.countDocuments();
         const users = await UserBase.find(
           { _id: { $ne: currentUser } },
           {
@@ -125,7 +142,7 @@ commonRoutes.post( "/get-all-users", authMiddleware, updateLastActivity, async (
             isVerified:1
           }
         ).skip((pageNumber - 1) * rowsPerPage).limit(rowsPerPage);
-        res.status(200).json({ message: "success", data: users });
+        res.status(200).json({ message: "success", data: users, totalCount: totalCount });
       }
     } catch (error) {
       res.status(500).json({ message: error.message });
@@ -399,11 +416,7 @@ commonRoutes.get("/get-unique-reference-codes", async (req, res) => {
   }
 });
 
-commonRoutes.post(
-  "/logout-user",
-  authMiddleware,
-  updateLastActivity,
-  async (req, res) => {}
+commonRoutes.post( "/logout-user", authMiddleware, updateLastActivity, async (req, res) => {}
 );
 
 export default commonRoutes;
