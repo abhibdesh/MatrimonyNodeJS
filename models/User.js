@@ -55,6 +55,7 @@ const CandidateSchema = new mongoose.Schema(
     expectedNaadi: { type: Array, default: [] },
     expectedRaas: { type: Array, default: [] },
     expectedHeight: { type: String, default: "" },
+    expectedLocality:{type:Array,default:[]},
     expectedFamilyType: { type: Array, default: [] },
     expectedSiblingsCousinsUpto: { type: Number },
     profileWithImages: { type: Boolean, default: true },

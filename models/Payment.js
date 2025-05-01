@@ -1,10 +1,10 @@
 import mongoose from "mongoose";
 
-const paymentSchema = mongoose.Schema(
+const paymentSchema = new mongoose.Schema(
   {
     payerName: { type: String },
     planDuration: { type: String },
-    profileCount: { type: String },
+    profileCount: { type: Number },
     isApproved: { type: Boolean, default: false },
     amountPaid: { type: Number },
     transactionId:{type:String},
@@ -14,7 +14,7 @@ const paymentSchema = mongoose.Schema(
     referenceCode: { type: String },
     totalProfilesViewed: { type: Number, default:0 },
     savedProfiles: { type: [String], default: [] },
-    approvalTimestamp: { type: Date },
+    approvalTimestamp: { type: Date, default:null },
     isPaymentSettled: { type: Boolean, default: false }
   },
   {
@@ -23,6 +23,6 @@ const paymentSchema = mongoose.Schema(
   }
 );
 
-const Payment = mongoose.model("PaymentsInfo", paymentSchema);
+const PaymentBase = mongoose.model("PaymentsInfo", paymentSchema);
 
-export default Payment;
+export default PaymentBase;

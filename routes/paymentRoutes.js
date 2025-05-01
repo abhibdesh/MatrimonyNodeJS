@@ -23,55 +23,91 @@ paymentRoutes.post( "/generate-qr-code", authMiddleware, updateLastActivity, asy
       const atm = moment().tz(localTimezone);
       let amountPaid;
       let validTill;
+      let countOfProfiles;
 
       if (planDuration === "1M") {
         validTill = atm.clone().add(1, "months");
-        if(profileCount === "10")
-            amountPaid = 499;
-        if(profileCount === "20")
-            amountPaid = 899;
-        if(profileCount === "30")
-            amountPaid = 1299;
-        if(profileCount === "Unlimited")
-            amountPaid = 1599;
+        if (profileCount === "10") {
+          amountPaid = 499;
+          countOfProfiles = 10;
+        }
+        if (profileCount === "20") {
+          amountPaid = 899;
+          countOfProfiles = 20;
+        }
+        if (profileCount === "30") {
+          amountPaid = 1299;
+          countOfProfiles = 30;
+        }
+        if (profileCount === "Unlimited") {
+          amountPaid = 1599;
+          countOfProfiles = 0;
+        }
       }
       if (planDuration === "3M") {
         validTill = atm.clone().add(3, "months");
-        if(profileCount === "10")
-            amountPaid = 899;
-        if(profileCount === "20")
-            amountPaid = 1299;
-        if(profileCount === "30")
-            amountPaid = 1599;
-        if(profileCount === "Unlimited")
-            amountPaid = 1999;
+        if (profileCount === "10") {
+          amountPaid = 899;
+          countOfProfiles = 30;
+        }
+        if (profileCount === "20") {
+          amountPaid = 1299;
+          countOfProfiles = 20;
+        }
+        if (profileCount === "30") {
+          amountPaid = 1599;
+          countOfProfiles = 30;
+        }
+        if (profileCount === "Unlimited") {
+          amountPaid = 1999;
+          countOfProfiles = 0;
+        }
       }
       if (planDuration === "6M") {
         validTill = atm.clone().add(6, "months");
-        if(profileCount === "10")
-            amountPaid = 1299;
-        if(profileCount === "20")
-            amountPaid = 1599;
-        if(profileCount === "30")
-            amountPaid = 1999;
-        if(profileCount === "Unlimited")
-            amountPaid = 2499;
+        if (profileCount === "10") {
+          amountPaid = 1299;
+          countOfProfiles = 10;
+        }
+        if (profileCount === "20") {
+          amountPaid = 1599;
+          countOfProfiles = 20;
+        }
+        if (profileCount === "30") {
+          amountPaid = 1999;
+          countOfProfiles = 30;
+        }
+        if (profileCount === "Unlimited") {
+          amountPaid = 2499;
+          countOfProfiles = 0;
+        }
       }
       if (planDuration === "9M") {
         validTill = atm.clone().add(9, "months");
-        if(profileCount === "10")
-            amountPaid = 1299;
-        if(profileCount === "20")
-            amountPaid = 1599;
-        if(profileCount === "30")
-            amountPaid = 1999;
-        if(profileCount === "Unlimited")
-            amountPaid = 2499;
+        if (profileCount === "10") {
+          amountPaid = 1299;
+          countOfProfiles = 10;
+        }
+        if (profileCount === "20") {
+          amountPaid = 1599;
+          countOfProfiles = 20;
+        }
+        if (profileCount === "30") {
+          amountPaid = 1999;
+          countOfProfiles = 30;
+        }
+        if (profileCount === "Unlimited") {
+          amountPaid = 2499;
+          countOfProfiles = 0;
+        }
       }
 
-      if(planDuration === "1Y"){
-        validTill = atm.clone().add(12, "months");
-        amountPaid = 4999
+      if (planDuration === "1Y") {
+        {
+          validTill = atm.clone().add(12, "months");
+          amountPaid = 4999;
+          countOfProfiles = 0;
+        }
       }
       const count = await Payment.countDocuments({
         createdAt: { $gte: startOfDay, $lte: endOfDay },
@@ -85,21 +121,22 @@ paymentRoutes.post( "/generate-qr-code", authMiddleware, updateLastActivity, asy
       else if (count >= 100 && count < 1000)
         transactionId = transactionId + "00" + count;
 
-      const upiId = "abhibdesh@okaxis"
-      const note = "Plan period " + planDuration + " Profile Count " + profileCount + " Transaction " + transactionId
+      const upiId = "abhibdesh@okaxis";
+      const note = "Plan period " + planDuration + " Profile Count " + profileCount + " Transaction " + transactionId;
       const upiLink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent("Fyjix")}&mc=&tid=${transactionId}&tr=${transactionId}&tn=${encodeURIComponent(note)}&am=${amountPaid}&cu=INR`;
-      console.log(upiLink)  
+      
       await Payment.create({
-        payerName : candidate.firstName + " " + candidate.lastName,
+        payerName: candidate.firstName + " " + candidate.lastName,
         planDuration: planDuration,
-        profileCount:profileCount,
-        amountPaid:amountPaid,
-        validTill:validTill,
+        profileCount: parseInt(countOfProfiles),
+        savedProfiles:[],
+        amountPaid: amountPaid,
+        validTill: validTill,
         userId: candidate._id,
         userEmail: candidate.userEmail,
-        referenceCode:candidate.referenceCode,
-        transactionId:transactionId
-      })
+        referenceCode: candidate.referenceCode,
+        transactionId: transactionId,
+      });
       const image = await QRCode.toDataURL(upiLink, { errorCorrectionLevel: "H" });
       res.status(200).json({
         message: "success",
