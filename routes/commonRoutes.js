@@ -172,8 +172,7 @@ commonRoutes.get(
   }
 );
 
-// TODO : Will be changed after payment plan APIs will be completed
-commonRoutes.get( "/get-profile-by-id-home/:userId", authMiddleware, updateLastActivity, async (req, res) => {
+commonRoutes.get( "/home/get-profile-by-id/:userId", authMiddleware, updateLastActivity, async (req, res) => {
     try {
       const { userId } = req.params;
       const data = await UserBase.findById(userId, {
@@ -186,14 +185,23 @@ commonRoutes.get( "/get-profile-by-id-home/:userId", authMiddleware, updateLastA
         isLoggedIn: 0,
         lastLogoutTime: 0,
         userPassword: 0,
-        _id:0,
         __v:0,
         accessToken:0
       }).lean();
       const finalData = {}
       const paymentInfo = await PaymentBase.findOne({
-        userEmail: req.user.userEmail
-      }).sort({ createdAt: -1 });
+          userEmail: req.user.userEmail
+        }).sort({ createdAt: -1 });
+
+        const paymentInfoForProfiles = await PaymentBase.find({
+          userEmail: req.user.userEmail
+        });
+      
+      
+      const userIdList = paymentInfoForProfiles
+              .flatMap(entry => entry.savedProfiles || [])
+              .filter(Boolean)
+              .map(id =>id);
       
       let dayName = "";
       if (data.birthDate) {
@@ -202,39 +210,18 @@ commonRoutes.get( "/get-profile-by-id-home/:userId", authMiddleware, updateLastA
       finalData.image = data.image || "";
       finalData.name = `${data.firstName} ${data.lastName}`;
 
-      // Contact Details Section
-      let emailIdString = "Buy Our Services For Contact Information";
-      let contactNumberString = "Buy Our Services For Contact Information";
       let paymentPlan = "None";
-
+      finalData.isAlreadyAdded = false;
       if (paymentInfo) {
-          if (paymentInfo.savedProfiles.includes(data._id)) {
+          if (userIdList.includes(data._id.toString())) {
               finalData.isAlreadyAdded = true;
-          } else {
-              finalData.isAlreadyAdded = false;
-          }
+          } 
           const localTimezone = "Asia/Kolkata";
           const atm = moment().tz(localTimezone);
          if (paymentInfo.isApproved === true && (paymentInfo.profileCount == 0 || (paymentInfo.savedProfiles.length < paymentInfo.profileCount) < parseInt(paymentInfo.profileCount)) && moment.utc(paymentInfo.validTill).isAfter(atm.utc())) {
            paymentPlan = "Active";
          }
-          if (paymentInfo.savedProfiles.includes(data._id) && paymentInfo.isApproved === 1 && moment(paymentInfo.validTill).isAfter(moment())) {
-              emailIdString = data.userEmail;
-              contactNumberString = data.phoneNumber;
-          }
-
-          // Email and Phone Verification
-          emailIdString = data.isEmailVerified ? data.userEmail : "Unverified Email By Candidate";
-          contactNumberString = data.isPhoneVerified ? data.phoneNumber : "Unverified Phone Number By Candidate";
-          const currUser = await UserBase.findOne({_id:req.user._id});
-          if (!currUser.isEmailVerified) emailIdString = "Verify Your Email";
-          if (!currUser.isPhoneVerified) contactNumberString = "Verify Your Mobile Number";
       }
-
-      finalData.phoneNumber = contactNumberString;
-      finalData.userEmail = emailIdString;
-      finalData.community = data.community;
-      
       // Reference Name
       if (data.referenceCode) {
           const adminData = await UserBase.findOne({ __t: "admin", referenceCode: data.referenceCode });
@@ -272,37 +259,20 @@ commonRoutes.get( "/get-profile-by-id-home/:userId", authMiddleware, updateLastA
       finalData.birthPlace = data.birthPlace || "Not Provided";
       finalData.height = data.height ? `${data.height} Feet` : "Not Provided";
       finalData.bloodGroup = data.bloodGroup || "Not Provided";
-      finalData.naadi = data.naadi || "Not Provided";
       finalData.disabilityYN = data.disabilityYN || "Not Applicable";
-      finalData.raas = data.raas || "Not Provided";
-      finalData.devak = data.devak || "Not Provided";
-      finalData.gotra = data.gotra || "Not Provided";
-      finalData.gana = data.gana || "Not Provided";
-      finalData.charan = data.charan || "Not Provided";
-      finalData.nakshatra = data.nakshatra || "Not Provided";
-
-      // Family Details Section
-      finalData.familyType = data.familyType || "Not Provided";
-      finalData.siblingCount = data.siblingCount !== "0" ? data.siblingCount : "None";
-      finalData.educationOfSiblings = data.educationOfSiblings || "Not Provided";
-      finalData.property = data.property || "Not Provided";
-      finalData.educationOfMother = data.educationOfMother || "Not Provided";
-      finalData.educationOfFather = data.educationOfFather || "Not Provided";
-      finalData.motherFamilyDetails = data.motherFamilyDetails || "Not Provided";
-      finalData.fatherFamilyDetails = data.fatherFamilyDetails || "Not Provided";
 
       // Expectations Section
-      finalData.selectedEducations = data.selectedEducations;
-      finalData.selectedIncome = data.selectedIncome;
-      finalData.expectedEatingHabits = data.expectedEatingHabits
-      finalData.expectedGana = data.expectedGana
-      finalData.expectedLocality = data.expectedLocality
-      finalData.expectedNakshatra = data.expectedNakshatra
-      finalData.expectedBloodGroups = data.expectedBloodGroups
-      finalData.expectedNaadi = data.expectedNaadi
-      finalData.expectedRaas = data.expectedRaas
+      finalData.selectedEducations = data.selectedEducations || "No bar";
+      finalData.selectedIncome = data.selectedIncome || "No bar";
+      finalData.expectedEatingHabits = data.expectedEatingHabits || "No bar";
+      finalData.expectedGana = data.expectedGana || "No bar";
+      finalData.expectedLocality = data.expectedLocality || "No bar";
+      finalData.expectedNakshatra = data.expectedNakshatra || "No bar";
+      finalData.expectedBloodGroups = data.expectedBloodGroups || "No bar";
+      finalData.expectedNaadi = data.expectedNaadi || "No bar";
+      finalData.expectedRaas = data.expectedRaas || "No bar";
       finalData.expectedHeight = data.expectedHeight || "No bar";
-      finalData.expectedFamilyType = data.expectedFamilyType
+      finalData.expectedFamilyType = data.expectedFamilyType;
       finalData.selectedSiblingsCousinsUpto = data.selectedSiblingsCousinsUpto || "No bar";
       finalData.expectedAgeGap = `${data.expectedAgeGapMin}-${data.expectedAgeGapMax} years`|| "No bar";
       finalData.expectedAgeGapMax = data.expectedAgeGapMax ? `${data.expectedAgeGapMax} years` : "No bar";
@@ -317,6 +287,150 @@ commonRoutes.get( "/get-profile-by-id-home/:userId", authMiddleware, updateLastA
     }
   }
 );
+
+commonRoutes.get("/saved-profiles/get-profile-by-id/:userId", authMiddleware, updateLastActivity, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const data = await UserBase.findById(userId, {
+      lastActivity: 0,
+      createdAt: 0,
+      updatedAt: 0,
+      __t: 0,
+      isDeleted: 0,
+      isActive: 0,
+      isLoggedIn: 0,
+      lastLogoutTime: 0,
+      userPassword: 0,
+      _id:0,
+      __v:0,
+      accessToken:0
+    }).lean();
+    const finalData = {}
+    const paymentInfo = await PaymentBase.findOne({
+      userEmail: req.user.userEmail
+    }).sort({ createdAt: -1 });
+    
+    let dayName = "";
+    if (data.birthDate) {
+        dayName = moment(data.birthDate).format('dddd');
+    }
+    finalData.image = data.image || "";
+    finalData.name = `${data.firstName} ${data.lastName}`;
+
+    // Contact Details Section
+    let emailIdString = "Buy Our Services For Contact Information";
+    let contactNumberString = "Buy Our Services For Contact Information";
+    let paymentPlan = "None";
+    finalData.isAlreadyAdded = false;
+    if (paymentInfo) {
+        if (paymentInfo.savedProfiles.includes(data._id)) {
+            finalData.isAlreadyAdded = true;
+        } 
+        const localTimezone = "Asia/Kolkata";
+        const atm = moment().tz(localTimezone);
+       if (paymentInfo.isApproved === true && (paymentInfo.profileCount == 0 || (paymentInfo.savedProfiles.length < paymentInfo.profileCount) < parseInt(paymentInfo.profileCount)) && moment.utc(paymentInfo.validTill).isAfter(atm.utc())) {
+         paymentPlan = "Active";
+       }
+        if (paymentInfo.savedProfiles.includes(data._id) && paymentInfo.isApproved === 1 && moment(paymentInfo.validTill).isAfter(moment())) {
+            emailIdString = data.userEmail;
+            contactNumberString = data.phoneNumber;
+        }
+
+        // Email and Phone Verification
+        emailIdString = data.isEmailVerified ? data.userEmail : "Unverified Email By Candidate";
+        contactNumberString = data.isPhoneVerified ? data.phoneNumber : "Unverified Phone Number By Candidate";
+        const currUser = await UserBase.findOne({_id:req.user._id});
+        if (!currUser.isEmailVerified) emailIdString = "Verify Your Email";
+        if (!currUser.isPhoneVerified) contactNumberString = "Verify Your Mobile Number";
+    }
+
+    finalData.phoneNumber = contactNumberString;
+    finalData.userEmail = emailIdString;
+    finalData.community = data.community;
+    
+    // Reference Name
+    if (data.referenceCode) {
+        const adminData = await UserBase.findOne({ __t: "admin", referenceCode: data.referenceCode });
+        finalData.referenceName = `${adminData.firstName} ${adminData.lastName}`;
+    } else {
+        finalData.referenceName = "NA";
+    }
+
+    // Other fields
+    finalData.jobBusiness = data.jobBusiness || "Not Provided";
+    finalData.degreeDiploma = data.degreeDiploma || "Not Provided";
+    finalData.fieldJob = data.fieldJob || "Not Provided";
+    finalData.degreeName = data.degreeName || "Not Provided";
+    finalData.companyName = data.companyName || "Not Provided";
+    finalData.incomeGroup = data.incomeGroup || "Not Provided";
+    finalData.currentAddress = data.currentAddress || "Not Provided";
+    finalData.fullAddress = `${data.currentAddress}, ${data.addressInShort}` || "Not Provided";
+
+    // Birth Date and Time Section
+    if (data.birthDate) {
+        const birthDate = moment(data.birthDate).format('DD MMMM YYYY');
+        dayName = moment(data.birthDate).format('dddd');
+        finalData.birthDate = `${birthDate}, ${dayName}`;
+    } else {
+        finalData.birthDate = "Not Provided";
+    }
+
+    if (data.birthTime) {
+        const formattedTime = moment(data.birthTime, 'HH:mm:ss').format('hh:mm A');
+        finalData.birthTime = formattedTime;
+    } else {
+        finalData.birthTime = "Not Provided";
+    }
+
+    finalData.birthPlace = data.birthPlace || "Not Provided";
+    finalData.height = data.height ? `${data.height} Feet` : "Not Provided";
+    finalData.bloodGroup = data.bloodGroup || "Not Provided";
+    finalData.naadi = data.naadi || "Not Provided";
+    finalData.disabilityYN = data.disabilityYN || "Not Applicable";
+    finalData.raas = data.raas || "Not Provided";
+    finalData.devak = data.devak || "Not Provided";
+    finalData.gotra = data.gotra || "Not Provided";
+    finalData.gana = data.gana || "Not Provided";
+    finalData.charan = data.charan || "Not Provided";
+    finalData.nakshatra = data.nakshatra || "Not Provided";
+
+    // Family Details Section
+    finalData.familyType = data.familyType || "Not Provided";
+    finalData.siblingCount = data.siblingCount !== "0" ? data.siblingCount : "None";
+    finalData.educationOfSiblings = data.educationOfSiblings || "Not Provided";
+    finalData.property = data.property || "Not Provided";
+    finalData.educationOfMother = data.educationOfMother || "Not Provided";
+    finalData.educationOfFather = data.educationOfFather || "Not Provided";
+    finalData.motherFamilyDetails = data.motherFamilyDetails || "Not Provided";
+    finalData.fatherFamilyDetails = data.fatherFamilyDetails || "Not Provided";
+
+    // Expectations Section
+    finalData.selectedEducations = data.selectedEducations;
+    finalData.selectedIncome = data.selectedIncome;
+    finalData.expectedEatingHabits = data.expectedEatingHabits
+    finalData.expectedGana = data.expectedGana
+    finalData.expectedLocality = data.expectedLocality
+    finalData.expectedNakshatra = data.expectedNakshatra
+    finalData.expectedBloodGroups = data.expectedBloodGroups
+    finalData.expectedNaadi = data.expectedNaadi
+    finalData.expectedRaas = data.expectedRaas
+    finalData.expectedHeight = data.expectedHeight || "No bar";
+    finalData.expectedFamilyType = data.expectedFamilyType
+    finalData.selectedSiblingsCousinsUpto = data.selectedSiblingsCousinsUpto || "No bar";
+    finalData.expectedAgeGap = `${data.expectedAgeGapMin}-${data.expectedAgeGapMax} years`|| "No bar";
+    finalData.expectedAgeGapMax = data.expectedAgeGapMax ? `${data.expectedAgeGapMax} years` : "No bar";
+    finalData.expectedAgeGapMin = data.expectedAgeGapMin ? `${data.expectedAgeGapMin} years` : "No bar";
+    finalData.strictMatch = data.strictMatch ? "Yes" : "No";
+    finalData.isVerified = data.isVerified;
+    finalData.paymentplan = paymentPlan;
+    res.status(200).json({ message: "success", data: finalData });
+  } catch (error) {
+    console.log(error)
+    res.status(500).json({ message: "failure", data: error.message });
+  }
+}
+);
+
 
 commonRoutes.post("/add-new-candidate", async (req, res) => {
   try {
@@ -540,8 +654,19 @@ commonRoutes.get("/get-unique-reference-codes", async (req, res) => {
   }
 });
 
-commonRoutes.post( "/logout-user", authMiddleware, updateLastActivity, async (req, res) => {}
-);
+commonRoutes.post("/logout-user", authMiddleware, updateLastActivity, async (req, res) => {
+  try {
+    res.clearCookie("token", {
+      httpOnly: true,
+      sameSite: "Lax",
+      // secure:true  // For Production
+    });
+    res.status(200).json({ message: "success", data: "Logged out successfully." });
+  } catch (error) {
+    res.status(500).json({ message: "failure", data: error.message });
+  }
+});
+
 
 commonRoutes.get("/get-districts",authMiddleware,updateLastActivity,async(req,res)=>{
   try{

@@ -11,6 +11,7 @@ import Candidate from "../models/User.js";
 import Payment from "../models/Payment.js";
 import { stringify } from "querystring";
 import moment from "moment-timezone";
+import PaymentBase from "../models/Payment.js";
 
 
 const userRoutes = express.Router();
@@ -107,11 +108,11 @@ userRoutes.post("/update-my-profile",authMiddleware,updateLastActivity,async(req
     },{
       new:true
     });
-    res.status(200).json({message:"sucess",data:user,alert:"Profile updated succesfully"})
+    return res.status(200).json({message:"sucess",data:user,alert:"Profile updated succesfully"})
     // res.status(200).json({message:"sucess",data:"Profile updated sucessfully"})
   }
   catch(error){
-    res.status(500).json({message:"failure",data:error.message})
+    return res.status(500).json({message:"failure",data:error.message})
   }
 });
 
@@ -119,15 +120,15 @@ userRoutes.get("/get-preferences",authMiddleware, updateLastActivity, async(req,
   try{
     if(req.user.__t === "candidate"){
       const user = await Candidate.findById(req.user._id,{expectedEducations:1,expectedIncome:1,expectedEatingHabits:1,expectedGana:1,expectedNakshatra:1,expectedAgeGapMin:1,expectedAgeGapMax:1,expectedBloodGroups:1,expectedNaadi:1,expectedRaas:1,expectedHeight:1,expectedFamilyType:1,expectedSiblingsCousinsUpto:1,profileWithImages:1,strictMatch:1});
-      res.status(200).json({message:"success",data:user})
+      return res.status(200).json({message:"success",data:user})
     }
     else{
-      res.status(200).json({message:"failure",data:"You are unauthorised to get preferences"})
+      return res.status(200).json({message:"failure",data:"You are unauthorised to get preferences"})
     }
    
   }
   catch(error){
-    res.status(500).json({message:"failure",data:error.message})
+    return res.status(500).json({message:"failure",data:error.message})
   }
 
 });
@@ -169,26 +170,37 @@ userRoutes.post("/update-preferences",authMiddleware,updateLastActivity,async(re
       profileWithImages:profileWithImages,
       strictMatch:strictMatch,
     });
-    res.status(200).json({message:"success",data:"Your preferences are updated successfully"})
+    return res.status(200).json({message:"success",data:"Your preferences are updated successfully"})
   }
   catch(error){
-    res.status(500).json({message:"failure",data:error.message})
+    return res.status(500).json({message:"failure",data:error.message})
   }
 });
 
-userRoutes.get("/get-my-saved-profiles",authMiddleware,updateLastActivity,async(req,res)=>{
-  try{
-    if(req.user.__t === "candidate"){
-      const paymentData = await Payment.find({ "userEmail": req.user.userEmail });
-      res.status(200).json({message:"success",data:paymentData})
-  
+userRoutes.post("/get-my-saved-profiles", authMiddleware, updateLastActivity, async (req, res) => {
+  try {
+    if (req.user.__t === "candidate") {
+      const paymentData = await Payment.find(
+        { userEmail: req.user.userEmail },
+        { savedProfiles: 1, _id: 0 }
+      );
+
+      const userIdList = paymentData
+        .flatMap(entry => entry.savedProfiles || [])
+        .filter(Boolean)
+        .map(id => new mongoose.Types.ObjectId(id));
+
+      const profileData = await Candidate.find({ _id: { $in: userIdList } });
+
+      return res.status(200).json({ message: "success", data: profileData });
+    } else {
+      return res.status(403).json({
+        message: "failure",
+        data: "You are unauthorized to fetch saved profiles"
+      });
     }
-    else{
-      res.status(200).json({message:"failure", data:"You are unauthorised to fetch saved profiles"})
-    }
-  }
-  catch(error){
-    res.status(500).json({message:"failure",data:error.message});
+  } catch (error) {
+    return res.status(500).json({ message: "failure", data: error.message });
   }
 });
 
@@ -196,38 +208,41 @@ userRoutes.post("/add-to-my-saved-profile",authMiddleware,updateLastActivity,asy
   try{
     if(req.user.__t === "candidate"){
       const { userIdToAdd } = req.body;
-      const getLastPayment = await Payment.findOne({ userEmail: req.user.userEmail }).sort({ CreatedDate: -1 });
+      const getLastPayment = await PaymentBase.findOne({ userEmail: req.user.userEmail }).sort({ createdAt: -1 });
       const localTimezone = "Asia/Kolkata";
       const atm = moment().tz(localTimezone);
       if(getLastPayment.isApproved === true){
         if(getLastPayment.validTill > atm){
-          if(getLastPayment.profileCount !== "Unlimited"){
+          if(getLastPayment.profileCount !== 0){
             const count =  getLastPayment.profileCount.toInt32();
             if(length(getLastPayment.savedProfiles) >= count){
-              res.status(200).json({message:"failure",data:"You have exhausted your profile limit."})
+              return res.status(200).json({message:"failure",data:"You have exhausted your profile limit."})
             }
             else{
               await Payment.updateOne({"_id":getLastPayment._id},{"$addToSet": { "savedProfiles": userIdToAdd },$inc:{ totalProfilesViewed: 1 }})
-              res.status(200).json({message:"success",data:"Profile added successfully"})
+              return res.status(200).json({message:"success",data:"Profile added successfully"})
             }
           }
           else{
             await Payment.updateOne({"_id":getLastPayment._id},{"$addToSet": { "savedProfiles": userIdToAdd },$inc:{ totalProfilesViewed: 1}})
-            res.status(200).json({message:"success",data:"Profile added successfully"})
+            return res.status(200).json({message:"success",data:"Profile added successfully"})
           }
         }
-        res.status(401).json({message:"failure",data:"Your plan has expired.Please check the validity."})
+      
+          return res.status(401).json({message:"failure",data:"Your plan has expired.Please check the validity."})
+        
       }
       else{
-        res.status(401).json({message:"failure",data:"Your payment is still under review"})
+        return res.status(401).json({message:"failure",data:"Your payment is still under review"})
       }
     }
     else{
-      res.status(401).json({message:"failure",data:"You are unauthorised to save profiles"});
+      return res.status(401).json({message:"failure",data:"You are unauthorised to save profiles"});
     }
   }
   catch(error){
-    res.status(500).json({message:"failure",data:error.message});
+    console.log(error)
+    return res.status(500).json({message:"failure",data:error.message});
   }
 });
 
