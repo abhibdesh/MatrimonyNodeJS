@@ -21,7 +21,7 @@ adminRoutes.post("/verify-candidate",authMiddleware,updateLastActivity,async(req
         else{
             const user = await Candidate.findById(userId);
             if(!user){
-                res.status(404).json({message:"failure",data:"User not found"})
+                res.status(200).json({message:"failure",data:"User not found"})
             }
             else{
                 await Candidate.findByIdAndUpdate(userId,{$set:{isVerified:true}})
@@ -31,13 +31,10 @@ adminRoutes.post("/verify-candidate",authMiddleware,updateLastActivity,async(req
     }catch(error){
         res.status(500).json({message:"failure",data:error.message})
     }
-    console.log(currentUser)
-    console.log(userId)
 });
 
 adminRoutes.get("/get-users-without-community",authMiddleware,updateLastActivity,async(req,res)=>{
     try{
-        console.log(req.user)
         if(req.user.__t === "admin"){
             const admin = await Admin.findById(req.user._id)
             console.log(admin.referenceCode)
@@ -122,9 +119,12 @@ adminRoutes.get("/get-my-references",authMiddleware,updateLastActivity,async(req
 
 adminRoutes.get("/get-my-community-list",authMiddleware,updateLastActivity,async(req,res)=>{
     try{
-        if(req.user.__t === "admin"){
+        if(req.user.__t === "admin" || req.user.__t === "owner"){
             const user = await Admin.findById(req.user._id);
-            res.status(200).json({message:"success",data:user.communityList})
+            return res.status(200).json({message:"success",data:user.communityList});
+        }
+        else{
+          return res.status(401).json({message:"failure",data:"You are unaithorised to see this"})
         }
     }
     catch(error){

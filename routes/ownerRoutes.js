@@ -39,13 +39,13 @@ ownerRoutes.post("/add-admin",authMiddleware,updateLastActivity, async (req, res
         data: "Admin account created successfully",
       });
     } else {
-      res
+   return res
         .status(200)
         .json({ message: "failure", data: "Account already exists" });
     }
   } catch (error) {
     console.log(error);
-    res.status(500).json({ message: "failure", data: error.message });
+    return res.status(500).json({ message: "failure", data: error.message });
   }
 });
 
@@ -136,9 +136,9 @@ ownerRoutes.get( "/get-payment-settlement", authMiddleware, updateLastActivity, 
       
       
       
-      res.status(200).json({ message:"success", data:result });
+      return res.status(200).json({ message:"success", data:result });
     } catch (error) {
-      res.status(500).json({ message: "failure", data: error.message });
+      return res.status(500).json({ message: "failure", data: error.message });
     }
   }
 );
@@ -152,10 +152,10 @@ ownerRoutes.post("/approve-payments",authMiddleware,updateLastActivity,async(req
         isApproved:true,
         approvalTimestamp:atm
       })
-      res.status(200).json({message:"success",data:"This payment has been approved successfully."})
+      return res.status(200).json({message:"success",data:"This payment has been approved successfully."})
     }
     catch(error){
-      res.status(500).json({message:"failure",data:error.message})
+      return res.status(500).json({message:"failure",data:error.message})
     }
 });
 
@@ -164,10 +164,10 @@ ownerRoutes.post("/mark-settlement-as-done",authMiddleware,updateLastActivity,as
   try{
     const {referenceCode} = req.body;
     await Payment.updateMany({"referenceCode":referenceCode},{$set:{isPaymentSettled:true}});
-    res.status(200).json({message:"success",data:"Payment Settlement Marked successfully"})
+    return res.status(200).json({message:"success",data:"Payment Settlement Marked successfully"})
   }
   catch(error){
-    res.status(500).json({message:"failure",data:error.message})
+    return res.status(500).json({message:"failure",data:error.message})
   }
 
 });
@@ -176,11 +176,11 @@ ownerRoutes.post("/add-new-menu",authMiddleware,updateLastActivity,async(req,res
   try {
     const { displayName, path, __t, priority } = req.body;
     await MenuMaster.create({ displayName: displayName, path: path, __t: __t, priority: priority });
-    res
+    return res
       .status(200)
       .json({ message: "success", data: "Menu created succesfully" });
   } catch (error) {
-    res.status(500).json({ message: "failure", data: error.message });
+    return res.status(500).json({ message: "failure", data: error.message });
   }
 });
 

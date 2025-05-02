@@ -67,48 +67,54 @@ userRoutes.post("/update-my-profile",authMiddleware,updateLastActivity,async(req
       fatherFamilyDetails
     } = req.body;
     const currentUser = req.user._id;
-    const user = await Candidate.findByIdAndUpdate(currentUser,{
-      firstName:firstName,
-      lastName:lastName,
-      userEmail:userEmail,
-      phoneNumber:phoneNumber,
-      choosingFor:choosingFor,
-      addressInShort:addressInShort,
-      currentAddress:currentAddress,
-      birthDate:birthDate,
-      birthTime:birthTime,
-      birthPlace:birthPlace,
-      height:height,
-      bloodGroup:bloodGroup,
-      disabilityYN:disabilityYN,
-      disablityDescription:disablityDescription,
-      degreeDiploma:degreeDiploma,
-      degreeName:degreeName,
-      fieldJob:fieldJob,
-      companyName:companyName,
-      jobBusiness:jobBusiness,
-      incomeGroup:incomeGroup,
-      eatingHabits:eatingHabits,
-      raas:raas,
-      gotra:gotra,
-      dosha:dosha,
-      gana:gana,
-      devak:devak,
-      nakshatra:nakshatra,
-      charan:charan,
-      naadi:naadi,
-      familyType:familyType,
-      siblingCount:siblingCount,
-      educationOfSiblings:educationOfSiblings,
-      property:property,
-      educationOfMother:educationOfMother,
-      educationOfFather:educationOfFather,
-      motherFamilyDetails:motherFamilyDetails,
-      fatherFamilyDetails:fatherFamilyDetails
-    },{
-      new:true
-    });
-    return res.status(200).json({message:"sucess",data:user,alert:"Profile updated succesfully"})
+    if(req.user.__t === "candidate"){
+      const user = await Candidate.findByIdAndUpdate(currentUser,{
+        firstName:firstName,
+        lastName:lastName,
+        userEmail:userEmail,
+        phoneNumber:phoneNumber,
+        choosingFor:choosingFor,
+        addressInShort:addressInShort,
+        currentAddress:currentAddress,
+        birthDate:birthDate,
+        birthTime:birthTime,
+        birthPlace:birthPlace,
+        height:height,
+        bloodGroup:bloodGroup,
+        disabilityYN:disabilityYN,
+        disablityDescription:disablityDescription,
+        degreeDiploma:degreeDiploma,
+        degreeName:degreeName,
+        fieldJob:fieldJob,
+        companyName:companyName,
+        jobBusiness:jobBusiness,
+        incomeGroup:incomeGroup,
+        eatingHabits:eatingHabits,
+        raas:raas,
+        gotra:gotra,
+        dosha:dosha,
+        gana:gana,
+        devak:devak,
+        nakshatra:nakshatra,
+        charan:charan,
+        naadi:naadi,
+        familyType:familyType,
+        siblingCount:siblingCount,
+        educationOfSiblings:educationOfSiblings,
+        property:property,
+        educationOfMother:educationOfMother,
+        educationOfFather:educationOfFather,
+        motherFamilyDetails:motherFamilyDetails,
+        fatherFamilyDetails:fatherFamilyDetails
+      },{
+        new:true
+      });
+      return res.status(200).json({message:"sucess",data:user,alert:"Profile updated succesfully"})
+    }
+    else{
+      return res.status(401).json({message:"failure",data:"You are unauthorised to get preferences"})
+    }
+  
     // res.status(200).json({message:"sucess",data:"Profile updated sucessfully"})
   }
   catch(error){
@@ -123,7 +129,7 @@ userRoutes.get("/get-preferences",authMiddleware, updateLastActivity, async(req,
       return res.status(200).json({message:"success",data:user})
     }
     else{
-      return res.status(200).json({message:"failure",data:"You are unauthorised to get preferences"})
+      return res.status(401).json({message:"failure",data:"You are unauthorised to get preferences"})
     }
    
   }
@@ -152,6 +158,7 @@ userRoutes.post("/update-preferences",authMiddleware,updateLastActivity,async(re
       profileWithImages,
       strictMatch,
     } = req.body;
+    
     
     await Candidate.findByIdAndUpdate(req.user._id,{
       expectedEducations:expectedEducations,
@@ -194,7 +201,7 @@ userRoutes.post("/get-my-saved-profiles", authMiddleware, updateLastActivity, as
 
       return res.status(200).json({ message: "success", data: profileData });
     } else {
-      return res.status(403).json({
+      return res.status(401).json({
         message: "failure",
         data: "You are unauthorized to fetch saved profiles"
       });
@@ -229,11 +236,11 @@ userRoutes.post("/add-to-my-saved-profile",authMiddleware,updateLastActivity,asy
           }
         }
       
-          return res.status(401).json({message:"failure",data:"Your plan has expired.Please check the validity."})
+          return res.status(200).json({message:"failure",data:"Your plan has expired.Please check the validity."})
         
       }
       else{
-        return res.status(401).json({message:"failure",data:"Your payment is still under review"})
+        return res.status(200).json({message:"failure",data:"Your payment is still under review"})
       }
     }
     else{

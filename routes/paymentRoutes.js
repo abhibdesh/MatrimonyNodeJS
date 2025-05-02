@@ -125,23 +125,29 @@ paymentRoutes.post( "/generate-qr-code", authMiddleware, updateLastActivity, asy
       const note = "Plan period " + planDuration + " Profile Count " + profileCount + " Transaction " + transactionId;
       const upiLink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent("Fyjix")}&mc=&tid=${transactionId}&tr=${transactionId}&tn=${encodeURIComponent(note)}&am=${amountPaid}&cu=INR`;
       
-      await Payment.create({
-        payerName: candidate.firstName + " " + candidate.lastName,
-        planDuration: planDuration,
-        profileCount: parseInt(countOfProfiles),
-        savedProfiles:[],
-        amountPaid: amountPaid,
-        validTill: validTill,
-        userId: candidate._id,
-        userEmail: candidate.userEmail,
-        referenceCode: candidate.referenceCode,
-        transactionId: transactionId,
-      });
-      const image = await QRCode.toDataURL(upiLink, { errorCorrectionLevel: "H" });
-      res.status(200).json({
-        message: "success",
-        data: image,
-      });
+      if(req.user.__t === "candidate"){
+        await Payment.create({
+          payerName: candidate.firstName + " " + candidate.lastName,
+          planDuration: planDuration,
+          profileCount: parseInt(countOfProfiles),
+          savedProfiles:[],
+          amountPaid: amountPaid,
+          validTill: validTill,
+          userId: candidate._id,
+          userEmail: candidate.userEmail,
+          referenceCode: candidate.referenceCode,
+          transactionId: transactionId,
+        });
+        const image = await QRCode.toDataURL(upiLink, { errorCorrectionLevel: "H" });
+        res.status(200).json({
+          message: "success",
+          data: image,
+        });
+      }
+      else{
+        return res.status(401).json({message:"failure",data:"You are unauthorised to generate QR code"})
+      }
+    
     } catch (error) {
       res.status(500).json({ message: "success", data: error.message });
     }
