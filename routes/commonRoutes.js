@@ -12,7 +12,8 @@ import MenuMaster from "../models/MenuMaster.js";
 import DistrictMaster from "../models/DistrictsBase.js";
 import PaymentBase from "../models/Payment.js";
 import moment from "moment-timezone";
-
+import dotenv from 'dotenv';
+dotenv.config();
 
 const commonRoutes = express.Router();
 
@@ -36,7 +37,6 @@ commonRoutes.post("/user-login", async (req, res) => {
 
     const payload = {
       _id: user._id,
-      userRole: user.userRole,
       userEmail: user.userEmail,
       __t: user.__t,
     };
@@ -443,61 +443,15 @@ commonRoutes.post("/add-new-candidate", async (req, res) => {
       referenceCode,
       lookingFor,
       choosingFor,
-      addressInShort,
-      currentAddress,
-      birthDate,
-      birthTime,
-      birthPlace,
-      height,
-      bloodGroup,
-      disabilityYN,
-      disablityDescription,
-      degreeDiploma,
-      degreeName,
-      fieldJob,
-      companyName,
-      jobBusiness,
-      incomeGroup,
-      eatingHabits,
-      raas,
-      gotra,
-      dosha,
-      gana,
-      devak,
-      nakshatra,
-      familyType,
-      siblingCount,
-      educationOfSiblings,
-      property,
-      educationOfMother,
-      educationOfFather,
-      motherFamilyDetails,
-      fatherFamilyDetails,
-      expectedEducations,
-      expectedIncome,
-      eatingHabitsExpected,
-      expectedGana,
-      charan,
-      naadi,
-      expectedNakshatra,
-      strictMatch,
-      userPaid,
-      profileWithImages,
-      readTCP,
-      expectedAgeGapMin,
-      expectedAgeGapMax,
-      expectedBloodGroups,
-      expectedNaadi,
-      expectedRaas,
-      expectedFamilyType,
-      expectedSiblingsCousinsUpto,
+      readTCP
     } = req.body;
+    console.log(req.body)
 
     const user = await UserBase.findOne({ userEmail: userEmail });
     if (!user) {
       const hashedPassword = await bcrypt.hash(userPassword, 10);
 
-      await Candidate.create({
+      const newCandidate = await Candidate.create({
         firstName: firstName,
         lastName: lastName,
         userEmail: userEmail,
@@ -506,55 +460,28 @@ commonRoutes.post("/add-new-candidate", async (req, res) => {
         referenceCode: referenceCode,
         lookingFor: lookingFor,
         choosingFor: choosingFor,
-        addressInShort: addressInShort,
-        currentAddress: currentAddress,
-        birthDate: birthDate !== null ? Date.parse(birthDate) : birthDate,
-        birthTime: birthTime,
-        birthPlace: birthPlace,
-        height: height,
-        bloodGroup: bloodGroup,
-        disabilityYN: disabilityYN,
-        disablityDescription: disablityDescription,
-        degreeDiploma: degreeDiploma,
-        degreeName: degreeName,
-        fieldJob: fieldJob,
-        companyName: companyName,
-        jobBusiness: jobBusiness,
-        incomeGroup: incomeGroup,
-        eatingHabits: eatingHabits,
-        raas: raas,
-        gotra: gotra,
-        dosha: dosha,
-        gana: gana,
-        devak: devak,
-        nakshatra: nakshatra,
-        charan: charan,
-        naadi: naadi,
-        familyType: familyType,
-        siblingCount: siblingCount,
-        educationOfSiblings: educationOfSiblings,
-        property: property,
-        educationOfMother: educationOfMother,
-        educationOfFather: educationOfFather,
-        motherFamilyDetails: motherFamilyDetails,
-        fatherFamilyDetails: fatherFamilyDetails,
-        expectedEducations: expectedEducations,
-        expectedIncome: expectedIncome,
-        eatingHabitsExpected: eatingHabitsExpected,
-        expectedGana: expectedGana,
-        expectedNakshatra: expectedNakshatra,
-        expectedAgeGapMin: expectedAgeGapMin,
-        expectedAgeGapMax: expectedAgeGapMax,
-        expectedBloodGroups: expectedBloodGroups,
-        expectedNaadi: expectedNaadi,
-        expectedRaas: expectedRaas,
-        expectedFamilyType: expectedFamilyType,
-        expectedFamilyType: expectedFamilyType,
-        expectedSiblingsCousinsUpto: expectedSiblingsCousinsUpto,
-        strictMatch: strictMatch,
-        userPaid: userPaid,
-        profileWithImages: profileWithImages,
         readTCP: readTCP,
+      });
+      console.log(newCandidate)
+
+      const payload = {
+        _id: newCandidate._id,
+        userEmail: userEmail,
+        __t: "candidate",
+      };
+  
+      const token = jwt.sign(payload, process.env.JWT_SECRET, {
+        expiresIn: "1d",
+      });
+  
+      await UserBase.findByIdAndUpdate(newCandidate._id, { accessToken: token });
+  
+      res.cookie("token", token, {
+        httpOnly: true, // Prevent access from JavaScript (security)
+        // secure: true,    // Use HTTPS (for production)
+        // sameSite: "None", // Prevent CSRF attacks
+        sameSite: "Lax", // For localhost
+        maxAge: 24 * 60 * 60 * 1000,
       });
       res
         .status(200)
