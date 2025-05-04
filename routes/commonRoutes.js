@@ -858,4 +858,82 @@ commonRoutes.post("/feedback", async (req, res) => {
   }
 });
 
+commonRoutes.post("/contact", async (req, res) => {
+  try {
+    const {
+      firstName,
+      lastName,
+      contactNumber,
+      emailId,
+      concern,
+      description,
+    } = req.body;
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_PASS,
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.GMAIL_USER,
+      // to: req.user.userEmail,
+      to: "abhi10900@gmail.com",
+      // to: "vickys2962@gmail.com",
+      subject: "Contact Request",
+      html: `
+                  <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="UTF-8" />
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                background-color: #f5f7fa;
+                margin: 0;
+                padding: 0;
+              }
+              .container {
+                max-width: 600px;
+                margin: 30px auto;
+                background-color: #ffffff;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+                padding: 30px;
+              }
+              .content {
+                padding: 20px;
+                font-size: 16px;
+                color: #333333;
+                line-height: 1.6;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="content">
+                <p> ${firstName}  ${lastName} sent a feedback:</p>
+                <p>Contact Number: ${contactNumber}</p> 
+                <p>Email: ${emailId}</p> 
+                <p>Concern: ${concern}</p> 
+                <p>Description: ${description}</p> 
+              </div>
+            </div>
+          </body>
+          </html>
+        `,
+    };
+    transporter
+      .sendMail(mailOptions)
+      .then((info) => console.log("Email sent:", info.response))
+      .catch((error) => console.error("Error sending email:", error));
+      return res.status(200).json({message:"success",data:"We have received your contact request and we will get back to you as early as possible."})
+
+  } catch (error) {
+    return res.status(500).json({ message: "failure", data: error.message });
+  }
+});
+
 export default commonRoutes;
