@@ -61,7 +61,8 @@ const CandidateSchema = new mongoose.Schema(
     profileWithImages: { type: Boolean, default: true },
     strictMatch: { type: Boolean, default: true },
     userPaid: { type: Boolean, default: false },
-    readTCP: { type: Boolean, default: true }
+    readTCP: { type: Boolean, default: true },
+    deactivationReason: { type: String}
   },
   { _id: false }
 );

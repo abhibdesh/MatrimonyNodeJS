@@ -139,7 +139,7 @@ paymentRoutes.post( "/generate-qr-code", authMiddleware, updateLastActivity, asy
           transactionId: transactionId,
         });
         const image = await QRCode.toDataURL(upiLink, { errorCorrectionLevel: "H" });
-        res.status(200).json({
+        return res.status(200).json({
           message: "success",
           data: image,
         });
@@ -149,7 +149,7 @@ paymentRoutes.post( "/generate-qr-code", authMiddleware, updateLastActivity, asy
       }
     
     } catch (error) {
-      res.status(500).json({ message: "success", data: error.message });
+      return res.status(500).json({ message: "success", data: error.message });
     }
   }
 );

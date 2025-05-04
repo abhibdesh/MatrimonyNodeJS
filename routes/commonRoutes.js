@@ -160,8 +160,9 @@ commonRoutes.get(
   updateLastActivity,
   async (req, res) => {
     try {
-      const user = await UserBase.findById(req.user._id);
-      return res.status(200).json({ message: "success", data: user });
+      const user = await UserBase.findById(req.user._id,{userPassword:0,accessToken:0});
+      user.userRole = req.user.__t;
+      return res.status(200).json({ message: "success", data: user,  });
     } catch (error) {
       return res.status(500).json({ message: "failure", data: error.message });
     }
