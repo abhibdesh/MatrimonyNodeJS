@@ -914,7 +914,7 @@ commonRoutes.post("/contact", async (req, res) => {
           <body>
             <div class="container">
               <div class="content">
-                <p> ${firstName}  ${lastName} sent a feedback:</p>
+                <p> ${firstName}  ${lastName} sent a conatct request:</p>
                 <p>Contact Number: ${contactNumber}</p> 
                 <p>Email: ${emailId}</p> 
                 <p>Concern: ${concern}</p> 
@@ -930,6 +930,80 @@ commonRoutes.post("/contact", async (req, res) => {
       .then((info) => console.log("Email sent:", info.response))
       .catch((error) => console.error("Error sending email:", error));
       return res.status(200).json({message:"success",data:"We have received your contact request and we will get back to you as early as possible."})
+
+  } catch (error) {
+    return res.status(500).json({ message: "failure", data: error.message });
+  }
+});
+
+commonRoutes.post("/join-us-as-admins", async (req, res) => {
+  try {
+    const {
+      firstName,
+      lastName,
+      contactNumber,
+      emailId
+    } = req.body;
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_PASS,
+      },
+    });
+
+    const mailOptions = {
+      from: process.env.GMAIL_USER,
+      // to: req.user.userEmail,
+      to: "abhi10900@gmail.com",
+      // to: "vickys2962@gmail.com",
+      subject: "Admin Request",
+      html: `
+                  <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="UTF-8" />
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                background-color: #f5f7fa;
+                margin: 0;
+                padding: 0;
+              }
+              .container {
+                max-width: 600px;
+                margin: 30px auto;
+                background-color: #ffffff;
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+                padding: 30px;
+              }
+              .content {
+                padding: 20px;
+                font-size: 16px;
+                color: #333333;
+                line-height: 1.6;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="content">
+                <p> ${firstName}  ${lastName} sent an admin request:</p>
+                <p>Contact Number: ${contactNumber}</p> 
+                <p>Email: ${emailId}</p> 
+              </div>
+            </div>
+          </body>
+          </html>
+        `,
+    };
+    transporter
+      .sendMail(mailOptions)
+      .then((info) => console.log("Email sent:", info.response))
+      .catch((error) => console.error("Error sending email:", error));
+      return res.status(200).json({message:"success",data:"We have received your admin request and it is under review. We will get back to you as early as possible."})
 
   } catch (error) {
     return res.status(500).json({ message: "failure", data: error.message });
