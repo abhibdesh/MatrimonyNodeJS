@@ -14,6 +14,7 @@ import PaymentBase from "../models/Payment.js";
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 import emailOTP from "../models/EmailOTPBase.js";
+import phoneOTP from "../models/PhoneOTPBase.js";
 dotenv.config();
 
 const userRoutes = express.Router();
@@ -22,6 +23,10 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 let gfsBucket;
+
+const otpCache = {};
+const WINDOW_SECONDS = 60 * 60; // 1 hour
+const MAX_OTPS = 5;
 
 export function setGridFSBucket(bucket) {
   gfsBucket = bucket;
@@ -123,12 +128,10 @@ userRoutes.post(
           .status(200)
           .json({ message: "sucess", data: "Profile updated succesfully" });
       } else {
-        return res
-          .status(401)
-          .json({
-            message: "failure",
-            data: "You are unauthorised to get preferences",
-          });
+        return res.status(401).json({
+          message: "failure",
+          data: "You are unauthorised to get preferences",
+        });
       }
 
       // res.status(200).json({message:"sucess",data:"Profile updated sucessfully"})
@@ -164,12 +167,10 @@ userRoutes.get(
         });
         return res.status(200).json({ message: "success", data: user });
       } else {
-        return res
-          .status(401)
-          .json({
-            message: "failure",
-            data: "You are unauthorised to get preferences",
-          });
+        return res.status(401).json({
+          message: "failure",
+          data: "You are unauthorised to get preferences",
+        });
       }
     } catch (error) {
       return res.status(500).json({ message: "failure", data: error.message });
@@ -218,12 +219,10 @@ userRoutes.post(
         profileWithImages: profileWithImages,
         strictMatch: strictMatch,
       });
-      return res
-        .status(200)
-        .json({
-          message: "success",
-          data: "Your preferences are updated successfully",
-        });
+      return res.status(200).json({
+        message: "success",
+        data: "Your preferences are updated successfully",
+      });
     } catch (error) {
       return res.status(500).json({ message: "failure", data: error.message });
     }
@@ -280,12 +279,10 @@ userRoutes.post(
             if (getLastPayment.profileCount !== 0) {
               const count = getLastPayment.profileCount.toInt32();
               if (length(getLastPayment.savedProfiles) >= count) {
-                return res
-                  .status(200)
-                  .json({
-                    message: "failure",
-                    data: "You have exhausted your profile limit.",
-                  });
+                return res.status(200).json({
+                  message: "failure",
+                  data: "You have exhausted your profile limit.",
+                });
               } else {
                 await Payment.updateOne(
                   { _id: getLastPayment._id },
@@ -294,12 +291,10 @@ userRoutes.post(
                     $inc: { totalProfilesViewed: 1 },
                   }
                 );
-                return res
-                  .status(200)
-                  .json({
-                    message: "success",
-                    data: "Profile added successfully",
-                  });
+                return res.status(200).json({
+                  message: "success",
+                  data: "Profile added successfully",
+                });
               }
             } else {
               await Payment.updateOne(
@@ -309,36 +304,28 @@ userRoutes.post(
                   $inc: { totalProfilesViewed: 1 },
                 }
               );
-              return res
-                .status(200)
-                .json({
-                  message: "success",
-                  data: "Profile added successfully",
-                });
+              return res.status(200).json({
+                message: "success",
+                data: "Profile added successfully",
+              });
             }
           }
 
-          return res
-            .status(200)
-            .json({
-              message: "failure",
-              data: "Your plan has expired.Please check the validity.",
-            });
+          return res.status(200).json({
+            message: "failure",
+            data: "Your plan has expired.Please check the validity.",
+          });
         } else {
-          return res
-            .status(200)
-            .json({
-              message: "failure",
-              data: "Your payment is still under review",
-            });
+          return res.status(200).json({
+            message: "failure",
+            data: "Your payment is still under review",
+          });
         }
       } else {
-        return res
-          .status(401)
-          .json({
-            message: "failure",
-            data: "You are unauthorised to save profiles",
-          });
+        return res.status(401).json({
+          message: "failure",
+          data: "You are unauthorised to save profiles",
+        });
       }
     } catch (error) {
       console.log(error);
@@ -355,23 +342,19 @@ userRoutes.post(
     try {
       const { reason } = req.body;
       if (req.user.__t !== "candidate") {
-        return res
-          .status(401)
-          .json({
-            message: "failure",
-            data: "You are unauthorised to deactivate user profiles",
-          });
+        return res.status(401).json({
+          message: "failure",
+          data: "You are unauthorised to deactivate user profiles",
+        });
       } else {
         const data = await Candidate.findByIdAndUpdate(req.user._id, {
           isActive: false,
           deactivationReason: reason,
         });
-        return res
-          .status(200)
-          .json({
-            message: "success",
-            data: "Account Deactivated Successfully",
-          });
+        return res.status(200).json({
+          message: "success",
+          data: "Account Deactivated Successfully",
+        });
       }
     } catch (error) {
       console.log(error);
@@ -388,16 +371,15 @@ userRoutes.post(
     try {
       const { userName } = req.body;
       let otp = "";
-      const characters =
-        "1234567890";
+      const characters = "1234567890";
       for (let i = 0; i < 6; i++) {
         const randomInd = Math.floor(Math.random() * characters.length);
         otp += characters.charAt(randomInd);
       }
       await emailOTP.create({
-        OTP : otp,
-        userId : req.user._id
-      })
+        OTP: otp,
+        userId: req.user._id,
+      });
       const transporter = nodemailer.createTransport({
         service: "gmail",
         auth: {
@@ -494,50 +476,227 @@ userRoutes.post(
   }
 );
 
-userRoutes.post("/verify-email",authMiddleware,updateLastActivity,async(req,res)=>{
-  try {
-    const { otp } = req.body;
-    const ObjectId = mongoose.Types.ObjectId;
-    const lastOTPForUser = await emailOTP
-      .findOne({ userId: new ObjectId(req.user._id), isUsed: false })
-      .sort({ createdAt: -1 });
-    if (!lastOTPForUser) {
-      return res.status(404).json({ message: "No OTP found." });
-    }
-    const now = new Date();
-    const otpCreatedAt = lastOTPForUser.createdAt;
+userRoutes.post(
+  "/verify-email",
+  authMiddleware,
+  updateLastActivity,
+  async (req, res) => {
+    try {
+      const { otp } = req.body;
+      const ObjectId = mongoose.Types.ObjectId;
+      const lastOTPForUser = await emailOTP
+        .findOne({ userId: new ObjectId(req.user._id), isUsed: false })
+        .sort({ createdAt: -1 });
+      if (!lastOTPForUser) {
+        return res.status(404).json({ message: "No OTP found." });
+      }
+      const now = new Date();
+      const otpCreatedAt = lastOTPForUser.createdAt;
 
-    if (now - otpCreatedAt > 30 * 60 * 1000) {
-      return res
-        .status(200)
-        .json({ message: "failure", data:"OTP is expired. Please request a new OTP to proceed further."});
-    }
+      if (now - otpCreatedAt > 30 * 60 * 1000) {
+        return res
+          .status(200)
+          .json({
+            message: "failure",
+            data: "OTP is expired. Please request a new OTP to proceed further.",
+          });
+      }
 
-    if(otp === lastOTPForUser.OTP){
-      await Candidate.findByIdAndUpdate(req.user._id,{
-        $set:{
-          isEmailVerified : true
-        }
-      })
-      await emailOTP.findOneAndUpdate(lastOTPForUser._id,{
-        $set:{
-          isUsed:true
-        }
-      })
-      return res
-      .status(200)
-      .json({ message: "success", data: "Email Verified Successfully" });
+      if (otp === lastOTPForUser.OTP) {
+        await Candidate.findByIdAndUpdate(req.user._id, {
+          $set: {
+            isEmailVerified: true,
+          },
+        });
+        await emailOTP.findOneAndUpdate(lastOTPForUser._id, {
+          $set: {
+            isUsed: true,
+          },
+        });
+        return res
+          .status(200)
+          .json({ message: "success", data: "Email Verified Successfully" });
+      } else {
+        return res
+          .status(200)
+          .json({ message: "failure", data: "Invalid OTP" });
+      }
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ message: "failure", data: error.message });
     }
-    else{
-      return res
-      .status(200)
-      .json({ message: "failure", data: "Invalid OTP" });
-    }
-   
-  } catch (error) {
-    console.log(error);
-    return res.status(500).json({ message: "failure", data: error.message });
   }
-});
+);
+
+userRoutes.get(
+  "/webhook",
+  authMiddleware,
+  updateLastActivity,
+  async (req, res) => {
+    const mode = req.query["hub.mode"];
+    const token = req.query["hub.verify_token"];
+    const challenge = req.query["hub.challenge"];
+
+    if (mode === "subscribe" && token === process.env.META_VERIFY_TOKEN) {
+      console.log("Webhook Verified");
+      return res.status(200).send(challenge);
+    }
+
+    res.sendStatus(403);
+  }
+);
+
+userRoutes.post(
+  "/webhook",
+  authMiddleware,
+  updateLastActivity,
+  async (req, res) => {
+    console.log("Webhook POST");
+    const data = req.body;
+
+    if (data.object === "whatsapp_business_account") {
+      for (const entry of data.entry || []) {
+        for (const change of entry.changes || []) {
+          const value = change.value || {};
+          const messages = value.messages || [];
+
+          for (const message of messages) {
+            const userNumber = message.from;
+            const messageBody = message.text?.body?.trim().toLowerCase();
+
+            if (messageBody && messageBody.includes("verify")) {
+              if (canSendOtp(userNumber)) {
+                let otp = "";
+                const characters = "0123456789";
+                for (let i = 0; i < 6; i++) {
+                  const randomInd = Math.floor(
+                    Math.random() * characters.length
+                  );
+                  otp += characters.charAt(randomInd);
+                }
+                await sendOtpToUser(userNumber, otp, req.user._id);
+              } else {
+                console.log(`Rate limit hit for ${userNumber}`);
+              }
+            }
+          }
+        }
+      }
+    }
+    res.sendStatus(200);
+  }
+);
+
+async function sendOtpToUser(phone, otp, userId) {
+  const url = `https://graph.facebook.com/v19.0/${process.env.META_PHONE_NUMBER_ID}/messages`;
+
+  const headers = {
+    Authorization: `Bearer ${process.env.META_ACCESS_TOKEN}`,
+    "Content-Type": "application/json",
+  };
+
+  const body = JSON.stringify({
+    messaging_product: "whatsapp",
+    to: phone,
+    type: "text",
+    text: {
+      body: `Your OTP is: ${otp}. This OTP is valid for 1 hour. Do not share this with anyone.`,
+    },
+  });
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body,
+    });
+
+    const data = await response.json();
+    console.log("Meta API response:", response.status, data);
+
+    if (response.ok) {
+      await saveOtp(phone, otp, userId);
+    } else {
+      console.error("Failed to send OTP:", data);
+    }
+  } catch (err) {
+    console.error("Error sending OTP:", err);
+  }
+}
+
+async function saveOtp(phone, otp,userId) {
+
+  await phoneOTP.create({
+    userId: userId,
+    OTP: otp,
+  });
+
+  console.log(`Saved OTP ${otp} for ${phone}`);
+}
+
+function canSendOtp(phone) {
+  const now = Date.now() / 1000;
+  otpCache[phone] = (otpCache[phone] || []).filter(
+    (t) => now - t < WINDOW_SECONDS
+  );
+
+  if (otpCache[phone].length < MAX_OTPS) {
+    otpCache[phone].push(now);
+    return true;
+  }
+  return false;
+}
+
+userRoutes.post(
+  "/verify-phone",
+  authMiddleware,
+  updateLastActivity,
+  async (req, res) => {
+    try {
+      const { otp } = req.body;
+      const ObjectId = mongoose.Types.ObjectId;
+      const lastOTPForUser = await phoneOTP
+        .findOne({ userId: new ObjectId(req.user._id), isUsed: false })
+        .sort({ createdAt: -1 });
+      if (!lastOTPForUser) {
+        return res.status(404).json({ message: "No OTP found." });
+      }
+      const now = new Date();
+      const otpCreatedAt = lastOTPForUser.createdAt;
+
+      if (now - otpCreatedAt > 30 * 60 * 1000) {
+        return res
+          .status(200)
+          .json({
+            message: "failure",
+            data: "OTP is expired. Please request a new OTP to proceed further.",
+          });
+      }
+
+      if (otp === lastOTPForUser.OTP) {
+        await Candidate.findByIdAndUpdate(req.user._id, {
+          $set: {
+            isPhoneVerified: true,
+          },
+        });
+        await phoneOTP.findOneAndUpdate(lastOTPForUser._id, {
+          $set: {
+            isUsed: true,
+          },
+        });
+        return res
+          .status(200)
+          .json({ message: "success", data: "Phone Verified Successfully" });
+      } else {
+        return res
+          .status(200)
+          .json({ message: "failure", data: "Invalid OTP" });
+      }
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ message: "failure", data: error.message });
+    }
+  }
+);
 
 export default userRoutes;
