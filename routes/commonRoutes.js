@@ -65,7 +65,7 @@ commonRoutes.post("/user-login", async (req, res) => {
       httpOnly: true, // Prevent access from JavaScript (security)
       secure: true,    // Use HTTPS (for production)
       sameSite: "None", // Prevent CSRF attacks
-      sameSite: "Lax", // For localhost
+      // sameSite: "Lax", // For localhost
       maxAge: 24 * 60 * 60 * 1000,
     });
 
@@ -578,7 +578,7 @@ commonRoutes.post("/add-new-candidate", async (req, res) => {
         httpOnly: true, // Prevent access from JavaScript (security)
         secure: true,    // Use HTTPS (for production)
         sameSite: "None", // Prevent CSRF attacks
-        sameSite: "Lax", // For localhost
+        // sameSite: "Lax", // For localhost
         maxAge: 24 * 60 * 60 * 1000,
       });
       return res
@@ -691,7 +691,7 @@ commonRoutes.post(
       res.clearCookie("token", {
         httpOnly: true,
         sameSite: "Lax",
-        // secure:true  // For Production
+        secure:true  // For Production
       });
       return res
         .status(200)
