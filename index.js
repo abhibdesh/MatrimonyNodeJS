@@ -25,7 +25,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(
   cors({
     // origin: "http://localhost:5173", 
-    origin: "https://matrimony-ui-mern.vercel.app/", 
+    origin: "https://matrimony-ui-mern.vercel.app", 
     credentials: true, 
   })
 );
