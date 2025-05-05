@@ -63,8 +63,8 @@ commonRoutes.post("/user-login", async (req, res) => {
 
     res.cookie("token", token, {
       httpOnly: true, // Prevent access from JavaScript (security)
-      // secure: true,    // Use HTTPS (for production)
-      // sameSite: "None", // Prevent CSRF attacks
+      secure: true,    // Use HTTPS (for production)
+      sameSite: "None", // Prevent CSRF attacks
       sameSite: "Lax", // For localhost
       maxAge: 24 * 60 * 60 * 1000,
     });
@@ -576,8 +576,8 @@ commonRoutes.post("/add-new-candidate", async (req, res) => {
 
       res.cookie("token", token, {
         httpOnly: true, // Prevent access from JavaScript (security)
-        // secure: true,    // Use HTTPS (for production)
-        // sameSite: "None", // Prevent CSRF attacks
+        secure: true,    // Use HTTPS (for production)
+        sameSite: "None", // Prevent CSRF attacks
         sameSite: "Lax", // For localhost
         maxAge: 24 * 60 * 60 * 1000,
       });

@@ -31,7 +31,7 @@ app.use(
 app.use(express.json());
 
 // Connect to MongoDB
-mongoose.connect(MONGO_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+mongoose.connect(MONGO_URI)
   .then(() => {
     const db = mongoose.connection.db;
     const bucket = new GridFSBucket(db);
