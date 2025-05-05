@@ -17,6 +17,20 @@ dotenv.config();
 
 const commonRoutes = express.Router();
 
+
+commonRoutes.get("/health-check",async(req,res)=>{
+  try{
+    return res
+        .status(200)
+        .json({ message: "success", data: "Healthy" });
+  }
+  catch(error){
+    return res
+    .status(500)
+    .json({ message: "failure", data: error });
+  }
+});
+
 commonRoutes.post("/user-login", async (req, res) => {
   try {
     const { userEmail, userPassword } = req.body;
