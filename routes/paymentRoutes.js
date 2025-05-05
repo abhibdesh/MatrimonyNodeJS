@@ -11,7 +11,11 @@ import QRCode from "qrcode";
 
 const paymentRoutes = Router();
 
-paymentRoutes.post( "/generate-qr-code", authMiddleware, updateLastActivity, async (req, res) => {
+paymentRoutes.post(
+  "/generate-qr-code",
+  authMiddleware,
+  updateLastActivity,
+  async (req, res) => {
     try {
       const { planDuration, profileCount } = req.body;
       const candidate = await Candidate.findById(req.user._id);
@@ -122,15 +126,25 @@ paymentRoutes.post( "/generate-qr-code", authMiddleware, updateLastActivity, asy
         transactionId = transactionId + "00" + count;
 
       const upiId = "abhibdesh@okaxis";
-      const note = "Plan period " + planDuration + " Profile Count " + profileCount + " Transaction " + transactionId;
-      const upiLink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent("Fyjix")}&mc=&tid=${transactionId}&tr=${transactionId}&tn=${encodeURIComponent(note)}&am=${amountPaid}&cu=INR`;
-      
-      if(req.user.__t === "candidate"){
+      const note =
+        "Plan period " +
+        planDuration +
+        " Profile Count " +
+        profileCount +
+        " Transaction " +
+        transactionId;
+      const upiLink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(
+        "Fyjix"
+      )}&mc=&tid=${transactionId}&tr=${transactionId}&tn=${encodeURIComponent(
+        note
+      )}&am=${amountPaid}&cu=INR`;
+
+      if (req.user.__t === "candidate") {
         await Payment.create({
           payerName: candidate.firstName + " " + candidate.lastName,
           planDuration: planDuration,
           profileCount: parseInt(countOfProfiles),
-          savedProfiles:[],
+          savedProfiles: [],
           amountPaid: amountPaid,
           validTill: validTill,
           userId: candidate._id,
@@ -138,16 +152,61 @@ paymentRoutes.post( "/generate-qr-code", authMiddleware, updateLastActivity, asy
           referenceCode: candidate.referenceCode,
           transactionId: transactionId,
         });
-        const image = await QRCode.toDataURL(upiLink, { errorCorrectionLevel: "H" });
+        const image = await QRCode.toDataURL(upiLink, {
+          errorCorrectionLevel: "H",
+        });
         return res.status(200).json({
           message: "success",
           data: image,
         });
+      } else {
+        return res
+          .status(401)
+          .json({
+            message: "failure",
+            data: "You are unauthorised to generate QR code",
+          });
       }
-      else{
-        return res.status(401).json({message:"failure",data:"You are unauthorised to generate QR code"})
-      }
-    
+    } catch (error) {
+      return res.status(500).json({ message: "success", data: error.message });
+    }
+  }
+);
+
+paymentRoutes.get(
+  "/get-my-payments",
+  authMiddleware,
+  updateLastActivity,
+  async (req, res) => {
+    try {
+      const todayDate = new Date();
+      const paymentCollection = await Payment.find({ userId: req.user._id })
+        .sort({ createdAt: -1 })
+        const paymentData = [];
+      
+        for (let doc of paymentCollection) {
+          doc = doc.toObject();
+        
+          doc.totalProfilesViewed = doc.savedProfiles?.length || 0;
+          doc.validity = doc.validTill;
+        
+          const validTillDate = new Date(doc.validTill);
+          const isExpired = validTillDate < todayDate;
+        
+          if (
+            (doc.profileCount !== 0 && doc.totalProfilesViewed >= doc.profileCount) ||
+            isExpired
+          ) {
+            doc.validTill = "Validity Expired";
+          }
+        
+          paymentData.push(doc);
+        }
+        
+      return res.status(200).json({
+        message: "success",
+        data: paymentData,
+      });
     } catch (error) {
       return res.status(500).json({ message: "success", data: error.message });
     }
