@@ -77,7 +77,7 @@ adminRoutes.post("/assign-community-to-candidate",authMiddleware,updateLastActiv
 });
 
 
-adminRoutes.get("/get-my-references",authMiddleware,updateLastActivity,async(req,res)=>{
+adminRoutes.post("/get-my-references",authMiddleware,updateLastActivity,async(req,res)=>{
     try {
       if (req.user.__t !== "admin") {
         return res.status(401).json({ message: "failure", data: "You are unauthorised to get the references",
@@ -91,6 +91,7 @@ adminRoutes.get("/get-my-references",authMiddleware,updateLastActivity,async(req
         const localTimezone = "Asia/Kolkata";
         const atm = moment().tz(localTimezone);
         const currentMonth = atm.month() + 1;
+        const currentMonthName = atm.format("MMMM");
         const currentYear = atm.year();
 
         const result = await Payment.aggregate([
@@ -128,11 +129,13 @@ adminRoutes.get("/get-my-references",authMiddleware,updateLastActivity,async(req
           references: references,
           unsettledAmount: Math.ceil(originalPayableAmount),
           percentageShare: currentUser.percentageShare,
-          total: totalCount
+          total: totalCount,
+          currentMonthYear: currentMonthName + "," + currentYear.toString() ,
         };
         return  res.status(200).json({ message: "success", data: data });
       }
     } catch (error) {
+      console.log(error)
       return res.status(500).json({ message: "failure", data: error.message });
     }
 });
