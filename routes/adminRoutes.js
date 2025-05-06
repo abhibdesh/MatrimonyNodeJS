@@ -37,7 +37,6 @@ adminRoutes.get("/get-users-without-community",authMiddleware,updateLastActivity
     try{
         if(req.user.__t === "admin"){
             const admin = await Admin.findById(req.user._id)
-            console.log(admin.referenceCode)
             const users = await Candidate.find({__t:"candidate",referenceCode:admin.referenceCode,community:""},{_id:1,firstName:1,lastName:1,userEmail:1,isEmailVerified:1,phoneNumber:1,isPhoneVerified:1});
             return res.status(200).json({message:"success",data:users});
         }
@@ -53,7 +52,29 @@ adminRoutes.get("/get-users-without-community",authMiddleware,updateLastActivity
     }
 });
 
-adminRoutes.post("/assign-community-to-candidate",authMiddleware,updateLastActivity,async(req,res)=>{});
+adminRoutes.post("/assign-community-to-candidate",authMiddleware,updateLastActivity,async(req,res)=>{
+  try {
+    if(req.user.__t==="candidate"){
+      return res.status(401).json({message:"success",data:"You are unauthorised to assign community"});
+    }
+    else{
+      const { _id, community } = req.body;
+      console.log(_id);
+      console.log(community);
+      await Candidate.findByIdAndUpdate(_id,{
+        $set:{
+          isVerified : true,
+          community : community
+        }
+      });
+      return res.status(200).json({ message: "success", data: "Community Assigned Successfully" });
+    }
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ message: "failure", data: error.message });
+  }
+
+});
 
 
 adminRoutes.get("/get-my-references",authMiddleware,updateLastActivity,async(req,res)=>{
