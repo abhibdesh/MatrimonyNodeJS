@@ -31,7 +31,7 @@ ownerRoutes.post("/add-admin",authMiddleware,updateLastActivity, async (req, res
         phoneNumber: phoneNumber,
         userEmail: userEmail,
         userPassword: hashedPassword,
-        percentageShare:percentageShare
+        percentageShare:parseFloat(percentageShare)
       });
       console.log(user);
       res.status(200).json({
