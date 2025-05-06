@@ -18,8 +18,10 @@ paymentRoutes.post(
   async (req, res) => {
     try {
       const { planDuration, profileCount } = req.body;
+      console.log(planDuration)
+      console.log(profileCount)
       const candidate = await Candidate.findById(req.user._id);
-      const localTimezone = "Asia/Kolkata"; // or your preferred TZ
+      const localTimezone = "Asia/Kolkata";
       const today = moment().tz(localTimezone).startOf("day");
 
       const startOfDay = today.toDate();
@@ -29,15 +31,15 @@ paymentRoutes.post(
       let validTill;
       let countOfProfiles;
 
-      if (planDuration === "1M") {
+      if (planDuration === "1") {
         validTill = atm.clone().add(1, "months");
         if (profileCount === "10") {
           amountPaid = 499;
           countOfProfiles = 10;
         }
-        if (profileCount === "20") {
-          amountPaid = 899;
-          countOfProfiles = 20;
+        if (profileCount === "25") {
+          amountPaid = 999;
+          countOfProfiles = 25;
         }
         if (profileCount === "30") {
           amountPaid = 1299;
@@ -48,15 +50,15 @@ paymentRoutes.post(
           countOfProfiles = 0;
         }
       }
-      if (planDuration === "3M") {
+      if (planDuration === "3") {
         validTill = atm.clone().add(3, "months");
         if (profileCount === "10") {
           amountPaid = 899;
           countOfProfiles = 30;
         }
-        if (profileCount === "20") {
-          amountPaid = 1299;
-          countOfProfiles = 20;
+        if (profileCount === "25") {
+          amountPaid = 1399;
+          countOfProfiles = 25;
         }
         if (profileCount === "30") {
           amountPaid = 1599;
@@ -67,15 +69,15 @@ paymentRoutes.post(
           countOfProfiles = 0;
         }
       }
-      if (planDuration === "6M") {
+      if (planDuration === "6") {
         validTill = atm.clone().add(6, "months");
         if (profileCount === "10") {
           amountPaid = 1299;
           countOfProfiles = 10;
         }
-        if (profileCount === "20") {
-          amountPaid = 1599;
-          countOfProfiles = 20;
+        if (profileCount === "25") {
+          amountPaid = 1699;
+          countOfProfiles = 25;
         }
         if (profileCount === "30") {
           amountPaid = 1999;
@@ -86,15 +88,15 @@ paymentRoutes.post(
           countOfProfiles = 0;
         }
       }
-      if (planDuration === "9M") {
+      if (planDuration === "9") {
         validTill = atm.clone().add(9, "months");
         if (profileCount === "10") {
           amountPaid = 1299;
           countOfProfiles = 10;
         }
-        if (profileCount === "20") {
+        if (profileCount === "25") {
           amountPaid = 1599;
-          countOfProfiles = 20;
+          countOfProfiles = 25;
         }
         if (profileCount === "30") {
           amountPaid = 1999;
@@ -138,12 +140,12 @@ paymentRoutes.post(
       )}&mc=&tid=${transactionId}&tr=${transactionId}&tn=${encodeURIComponent(
         note
       )}&am=${amountPaid}&cu=INR`;
-
+      console.log(upiLink)
       if (req.user.__t === "candidate") {
         await Payment.create({
           payerName: candidate.firstName + " " + candidate.lastName,
           planDuration: planDuration,
-          profileCount: parseInt(countOfProfiles),
+          profileCount: countOfProfiles,
           savedProfiles: [],
           amountPaid: amountPaid,
           validTill: validTill,
@@ -168,6 +170,7 @@ paymentRoutes.post(
           });
       }
     } catch (error) {
+      console.log(error)
       return res.status(500).json({ message: "success", data: error.message });
     }
   }

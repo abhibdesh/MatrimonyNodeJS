@@ -51,7 +51,26 @@ ownerRoutes.post("/add-admin",authMiddleware,updateLastActivity, async (req, res
 
 
 ownerRoutes.get("/get-payments-to-approve",authMiddleware,updateLastActivity,async(req,res)=>{
-  
+    try{
+      // if(req.user.__t !== "owner"){
+      //   return res
+      //     .status(401)
+      //     .json({
+      //       message: "failure",
+      //       data: "You are unauthorised to approve payments",
+      //     });
+
+      // }
+      // else{
+        const pendingPayments = await Payment.find({isApproved:false,isPaymentSettled:false})
+        return res.status(200).json({message:"success",data:pendingPayments})
+      // }
+
+    }
+    catch(error){
+      console.log(error);
+      return res.status(500).json({ message: "failure", data: error.message });
+    }
 });
 
 ownerRoutes.get( "/get-payment-settlement", authMiddleware, updateLastActivity, async (req, res) => {
@@ -133,9 +152,6 @@ ownerRoutes.get( "/get-payment-settlement", authMiddleware, updateLastActivity, 
           },
         },
       ]);
-      
-      
-      
       return res.status(200).json({ message:"success", data:result });
     } catch (error) {
       return res.status(500).json({ message: "failure", data: error.message });
