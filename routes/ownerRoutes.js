@@ -52,6 +52,8 @@ ownerRoutes.post("/add-admin",authMiddleware,updateLastActivity, async (req, res
 
 ownerRoutes.get("/get-payments-to-approve",authMiddleware,updateLastActivity,async(req,res)=>{
     try{
+      const {rowsPerPage, pageNumber } = req.body;
+
       // if(req.user.__t !== "owner"){
       //   return res
       //     .status(401)
@@ -62,8 +64,10 @@ ownerRoutes.get("/get-payments-to-approve",authMiddleware,updateLastActivity,asy
 
       // }
       // else{
-        const pendingPayments = await Payment.find({isApproved:false,isPaymentSettled:false})
-        return res.status(200).json({message:"success",data:pendingPayments})
+      const  totalCount= await Payment.countDocuments({isApproved:false,isPaymentSettled:false});
+        
+      const pendingPayments = await Payment.find({isApproved:false,isPaymentSettled:false}).skip((pageNumber - 1) * rowsPerPage).limit(rowsPerPage);
+        return res.status(200).json({message:"success",data:pendingPayments,totalCount:totalCount})
       // }
 
     }
@@ -101,7 +105,8 @@ ownerRoutes.get( "/get-payment-settlement", authMiddleware, updateLastActivity, 
         {
           $group: {
             _id: "$referenceCode", 
-            unsettledAmount: { $sum: "$amountPaid" }
+            unsettledAmount: { $sum: "$amountPaid" },
+            paymentIds: { $push: "$_id" }
           },
         },
         {
@@ -148,6 +153,7 @@ ownerRoutes.get( "/get-payment-settlement", authMiddleware, updateLastActivity, 
             unsettledAmount: 1,
             percentageShare: 1,
             payableAmount: 1,
+            paymentIds: 1,
             _id: 0,
           },
         },
@@ -178,8 +184,8 @@ ownerRoutes.post("/approve-payments",authMiddleware,updateLastActivity,async(req
 ownerRoutes.post("/mark-settlement-as-done",authMiddleware,updateLastActivity,async(req,res)=>{
 
   try{
-    const {referenceCode} = req.body;
-    await Payment.updateMany({"referenceCode":referenceCode},{$set:{isPaymentSettled:true}});
+    const {transactionId} = req.body;
+    await Payment.updateMany({"_id":{$in:transactionId}},{$set:{isPaymentSettled:true}});
     return res.status(200).json({message:"success",data:"Payment Settlement Marked successfully"})
   }
   catch(error){
