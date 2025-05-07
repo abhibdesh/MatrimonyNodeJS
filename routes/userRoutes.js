@@ -149,6 +149,7 @@ userRoutes.get(
     try {
       if (req.user.__t === "candidate") {
         const user = await Candidate.findById(req.user._id, {
+          expectedLocatities:1,
           expectedEducations: 1,
           expectedIncome: 1,
           expectedEatingHabits: 1,
@@ -185,6 +186,7 @@ userRoutes.post(
   async (req, res) => {
     try {
       const {
+        expectedLocatities,
         expectedEducations,
         expectedIncome,
         expectedEatingHabits,
@@ -203,6 +205,7 @@ userRoutes.post(
       } = req.body;
 
       await Candidate.findByIdAndUpdate(req.user._id, {
+        expectedLocatities:expectedLocatities,
         expectedEducations: expectedEducations,
         expectedIncome: expectedIncome,
         expectedEatingHabits: expectedEatingHabits,

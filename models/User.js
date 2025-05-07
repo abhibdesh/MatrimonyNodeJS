@@ -45,6 +45,7 @@ const CandidateSchema = new mongoose.Schema(
     motherFamilyDetails: { type: String, default: "" },
     fatherFamilyDetails: { type: String, default: "" },
     expectedEducations: { type: Array, default: [] },
+    expectedLocatities: { type: Array, default: [] },
     expectedIncome: { type: Array, default: [] },
     expectedEatingHabits: { type: Array, default: [] },
     expectedGana: { type: Array, default: [] },
