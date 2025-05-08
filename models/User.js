@@ -12,6 +12,7 @@ const CandidateSchema = new mongoose.Schema(
     isPhoneVerified: { type: Boolean, default: false },
     isEmailVerified: { type: Boolean, default: false },
     image: { type: Array, default: [] },
+    profileImage: {},
     images: { type: Array, default: [] },
     birthDate: { type: Date, default: null },
     birthTime: { type: String, default: "" },
@@ -63,7 +64,7 @@ const CandidateSchema = new mongoose.Schema(
     strictMatch: { type: Boolean, default: true },
     userPaid: { type: Boolean, default: false },
     readTCP: { type: Boolean, default: true },
-    deactivationReason: { type: String}
+    deactivationReason: { type: String},
   },
   { _id: false }
 );

@@ -80,7 +80,7 @@ commonRoutes.get(
   async (req, res) => {
     try {
       const menu = await MenuMaster.find(
-        { __t: {$in:[req.user.__t ]} },
+        { __t: { $in: [req.user.__t] } },
         { _id: 0, displayName: 1, path: 1, priority: 1 }
       ).sort({ priority: 1 });
       res.status(200).json({
@@ -102,17 +102,10 @@ commonRoutes.post(
   async (req, res) => {
     try {
       const { filters, rowsPerPage, pageNumber } = req.body;
-      const currentUser = req.user._id;
+      const currentUser = await UserBase.findOne({_id:new mongoose.Types.ObjectId(req.user._id)});
+
       if (req.user.__t === "candidate") {
-        const candidate = await Candidate.findById(currentUser);
-        const updatedFilter = filters;
-        updatedFilter.__t = "candidate";
-        updatedFilter.lookingFor =
-          candidate.lookingFor === "Bride" ? "Groom" : "Bride";
-        updatedFilter.community = candidate.community;
-        const totalCount = await Candidate.countDocuments(updatedFilter);
-        const users = await Candidate.find(updatedFilter, {
-          _id: 1,
+        const projection = {
           firstName: 1,
           lastName: 1,
           birthDate: 1,
@@ -122,38 +115,154 @@ commonRoutes.post(
           addressInShort: 1,
           community: 1,
           isVerified: 1,
-        })
+          image: 1,
+          __t: 1,
+        };
+        const query = {
+          _id: { $ne: currentUser._id },
+          __t: "candidate",
+          isDeleted: false,
+          isActive: true,
+          lookingFor: { $ne: currentUser.lookingFor },
+          // isEmailVerified: true,
+          // isPhoneVerified: true,
+        };
+
+        //TODO: AS PER BIRTH YEAR
+        // Handle age
+        // if (filters.expectedAgeGapMin && filters.expectedAgeGapMax) {
+        //   query.birthDate = {
+        //     $gte: new Date(filters.expectedAgeGapMin, 0, 1),
+        //     $lte: new Date(filters.expectedAgeGapMax, 11, 31)
+        //   };
+        // }
+
+        // Height
+        // if (filters.selectedFromHeight > 0 && filters.selectedToHeight > 0) {
+        //   query.height = {
+        //     $gte: parseFloat(filters.selectedFromHeight),
+        //     $lte: parseFloat(filters.selectedToHeight)
+        //   };
+        // }
+
+        // Siblings
+        // if (filters.selectedSiblingsCousinsUpto > 0) {
+        //   query.siblingCount = { $lte: parseInt(filters.selectedSiblingsCousinsUpto) };
+        // }
+
+        // Merge filters from current user if not provided
+        // const mergeOrFallback = (key, fallbackKey) => {
+        //   return filters[key]?.length > 0
+        //     ? filters[key]
+        //     : currentUser[fallbackKey] || [];
+        // };
+
+        const mapFilters = [
+          // [MongoDB , Filter, currentUserExpectations]
+          ["incomeGroup", "selectedEducations", "expectedEducations"],
+          ["addressInShort", "selectedLocatities", "expectedLocatities"],
+          ["incomeGroup", "selectedIncome", "expectedIncome"],
+          ["eatingHabits", "expectedEatingHabits", "expectedEatingHabits"],
+          ["gana", "expectedGana", "expectedGana"],
+          ["nakshatra", "expectedNakshatra", "expectedNakshatra"],
+          // ['Raas', 'expectedAgeGapMin', 'expectedYearBeginning'],
+          // ['Raas', 'expectedAgeGapMax', 'expectedYearEnding'],
+          ["bloodGroup", "expectedBloodGroups", "expectedBloodGroups"],
+          ["naadi", "expectedNaadi", "expectedNaadi"],
+          ["raas", "expectedRaas", "expectedRaas"],
+          // ['Raas', 'selectedFromHeight', 'expectedFromHeight],
+          // ['Raas', 'selectedToHeight', 'expectedToHeight'],
+          ["familyType", "expectedFamilyType", "expectedFamilyType"],
+          [
+            "selectedSiblingsCousinsUpto",
+            "selectedSiblingsCousinsUpto",
+            "expectedSiblingsCousinsUpto",
+          ],
+          ["profileWithImages", "profileWithImages", "profileWithImages"],
+        ];
+
+        // for (const [field, userFilterKey, fallbackKey] of mapFilters) {
+        //   const vals = mergeOrFallback(userFilterKey, fallbackKey);
+        //   if (vals.length > 0) query[field] = { $in: vals };
+        // }
+
+        const totalCount = await Candidate.countDocuments(query);
+        const users = await Candidate.find(query, projection)
           .skip((pageNumber - 1) * rowsPerPage)
           .limit(rowsPerPage);
-          for (const u of users) {
-            const media = [];
-            if (u.image && u.image.length > 0) {
-              const file_id = new ObjectId(u.image[0]);
-              const file = await conn.db
-                .collection("fs.files")
-                .findOne({ _id: file_id });
-              const chunks = await conn.db
-                .collection("fs.chunks")
-                .find({ files_id: file_id })
-                .sort({ n: 1 })
-                .toArray();
-              const base64_chunks = chunks.map((chunk) =>
-                chunk.data.toString("base64")
-              );
-              media.push({
-                fileId: file._id.toString(),
-                filename: file.filename || "",
-                contentType: file.contentType || "image/jpeg",
-                length: file.length || 0,
-                chunks: base64_chunks,
-              });
-            }
-            u.profileImage = media; // ✅ assign to each user
-          }
-          
-        return res
-          .status(200)
-          .json({ message: "success", data: users, totalCount: totalCount });
+
+        const imageIds = users
+          .map((u) => u.image?.[0])
+          .filter(Boolean)
+          .map((id) => new mongoose.Types.ObjectId(id));
+
+        console.log("Image IDs:", imageIds);
+
+        const filesCursor = mongoose.connection.db
+          .collection("fs.files")
+          .find({ _id: { $in: imageIds } });
+
+        const files = await filesCursor.toArray();
+
+        const chunksCursor = mongoose.connection.db
+          .collection("fs.chunks")
+          .find({ files_id: { $in: imageIds } })
+          .sort({ n: 1 });
+
+        const chunks = await chunksCursor.toArray();
+
+        const fileChunksMap = files.reduce((acc, file) => {
+          const fileChunk = chunks.filter((c) => c.files_id.equals(file._id));
+          acc[file._id.toString()] = fileChunk.map((c) =>
+            Buffer.from(c.data.buffer).toString("base64")
+          ); 
+          return acc;
+        }, {});
+
+        const finalDataList = users.map((u) => {
+          const fileId = u.image?.[0];
+          const file = files.find((f) =>
+            f._id.equals(new mongoose.Types.ObjectId(fileId))
+          );
+
+          const media = file
+            ? [
+                {
+                  fileId: file._id.toString(),
+                  filename: file.filename || "",
+                  contentType: file.contentType || "image/jpeg",
+                  length: file.length,
+                  chunks: fileChunksMap[file._id.toString()] || [],
+                },
+              ]
+            : [];
+
+          return {
+            topData: {
+              name: `${u.firstName} ${u.lastName}`,
+              community: u.community,
+              address: u.addressInShort,
+              income:
+                u.jobBusiness && u.incomeGroup
+                  ? `${u.jobBusiness}, earns ${u.incomeGroup}`
+                  : "NA",
+              _id: u._id,
+              isVerified: u.isVerified,
+              profileImage: media,
+              birthDate: u.birthDate,
+              birthTime: u.birthTime,
+              birthPlace: u.birthPlace,
+            },
+          };
+        });
+
+        return res.json({
+          message: "Success",
+          users: finalDataList,
+          totalCount,
+          currentPage: pageNumber,
+          rowsPerPage,
+        });
       }
       if (req.user.__t === "admin") {
         const admin = await Admin.findById(req.user._id);
@@ -176,7 +285,7 @@ commonRoutes.post(
         })
           .skip((pageNumber - 1) * rowsPerPage)
           .limit(rowsPerPage);
-        
+
         return res
           .status(200)
           .json({ message: "success", data: users, totalCount: totalCount });
@@ -204,7 +313,7 @@ commonRoutes.post(
           .json({ message: "success", data: users, totalCount: totalCount });
       }
     } catch (error) {
-      console.log(error)
+      console.log(error);
       return res.status(500).json({ message: error.message });
     }
   }
@@ -713,8 +822,8 @@ commonRoutes.post(
       res.clearCookie("token", {
         httpOnly: true, // Prevent access from JavaScript (security)
         secure: true, // Use HTTPS (for production)
-        sameSite: "None", // Prevent CSRF attacks
-        // sameSite: "Lax", // For localhost
+        // sameSite: "None", // Prevent CSRF attacks
+        sameSite: "Lax", // For localhost
       });
       return res
         .status(200)
@@ -803,12 +912,10 @@ commonRoutes.post("/enquire-Services", async (req, res) => {
       .sendMail(mailOptions)
       .then((info) => console.log("Email sent:", info.response))
       .catch((error) => console.error("Error sending email:", error));
-    return res
-      .status(200)
-      .json({
-        message: "success",
-        data: "We have received your enquiry and we will get back to you at the earliest.",
-      });
+    return res.status(200).json({
+      message: "success",
+      data: "We have received your enquiry and we will get back to you at the earliest.",
+    });
   } catch (error) {
     return res.status(500).json({ message: "failure", data: error.message });
   }
@@ -877,12 +984,10 @@ commonRoutes.post("/feedback", async (req, res) => {
       .sendMail(mailOptions)
       .then((info) => console.log("Email sent:", info.response))
       .catch((error) => console.error("Error sending email:", error));
-    return res
-      .status(200)
-      .json({
-        message: "success",
-        data: "Thank you for the feedback. We will definitely consider the same.",
-      });
+    return res.status(200).json({
+      message: "success",
+      data: "Thank you for the feedback. We will definitely consider the same.",
+    });
   } catch (error) {
     return res.status(500).json({ message: "failure", data: error.message });
   }
@@ -957,12 +1062,10 @@ commonRoutes.post("/contact", async (req, res) => {
       .sendMail(mailOptions)
       .then((info) => console.log("Email sent:", info.response))
       .catch((error) => console.error("Error sending email:", error));
-    return res
-      .status(200)
-      .json({
-        message: "success",
-        data: "We have received your contact request and we will get back to you as early as possible.",
-      });
+    return res.status(200).json({
+      message: "success",
+      data: "We have received your contact request and we will get back to you as early as possible.",
+    });
   } catch (error) {
     return res.status(500).json({ message: "failure", data: error.message });
   }
@@ -1030,12 +1133,10 @@ commonRoutes.post("/join-us-as-admins", async (req, res) => {
       .sendMail(mailOptions)
       .then((info) => console.log("Email sent:", info.response))
       .catch((error) => console.error("Error sending email:", error));
-    return res
-      .status(200)
-      .json({
-        message: "success",
-        data: "We have received your admin request and it is under review. We will get back to you as early as possible.",
-      });
+    return res.status(200).json({
+      message: "success",
+      data: "We have received your admin request and it is under review. We will get back to you as early as possible.",
+    });
   } catch (error) {
     return res.status(500).json({ message: "failure", data: error.message });
   }
@@ -1114,12 +1215,10 @@ commonRoutes.post("/partner-request", async (req, res) => {
       .sendMail(mailOptions)
       .then((info) => console.log("Email sent:", info.response))
       .catch((error) => console.error("Error sending email:", error));
-    return res
-      .status(200)
-      .json({
-        message: "success",
-        data: "We have received your partner request and it is under review. We will get back to you as early as possible.",
-      });
+    return res.status(200).json({
+      message: "success",
+      data: "We have received your partner request and it is under review. We will get back to you as early as possible.",
+    });
   } catch (error) {
     return res.status(500).json({ message: "failure", data: error.message });
   }
