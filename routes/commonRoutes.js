@@ -269,7 +269,7 @@ commonRoutes.get(
   async (req, res) => {
     try {
       const { userId } = req.params;
-      const data = await UserBase.findById(userId, {
+      const user = await UserBase.findById(userId, {
         lastActivity: 0,
         createdAt: 0,
         updatedAt: 0,
@@ -282,122 +282,143 @@ commonRoutes.get(
         __v: 0,
         accessToken: 0,
       }).lean();
-      const finalData = {};
+
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const finalData = {
+        image: user.image || "",
+        name: `${user.firstName} ${user.lastName}`,
+        isAlreadyAdded: false,
+        paymentplan: "None",
+      };
+
       const paymentInfo = await PaymentBase.findOne({
         userEmail: req.user.userEmail,
       }).sort({ createdAt: -1 });
 
-      const paymentInfoForProfiles = await PaymentBase.find({
+      const allPayments = await PaymentBase.find({
         userEmail: req.user.userEmail,
       });
 
-      const userIdList = paymentInfoForProfiles
-        .flatMap((entry) => entry.savedProfiles || [])
+      const userIdList = allPayments
+        .flatMap(p => p.savedProfiles || [])
         .filter(Boolean)
-        .map((id) => id);
+        .map(id => id);
 
-      let dayName = "";
-      if (data.birthDate) {
-        dayName = moment(data.birthDate).format("dddd");
-      }
-      finalData.image = data.image || "";
-      finalData.name = `${data.firstName} ${data.lastName}`;
-
-      let paymentPlan = "None";
-      finalData.isAlreadyAdded = false;
       if (paymentInfo) {
-        if (userIdList.includes(data._id.toString())) {
+        if (userIdList.includes(user._id.toString())) {
           finalData.isAlreadyAdded = true;
         }
-        const localTimezone = "Asia/Kolkata";
-        const atm = moment().tz(localTimezone);
+        const localTime = moment().tz("Asia/Kolkata");
         if (
-          paymentInfo.isApproved === true &&
-          (paymentInfo.profileCount == 0 ||
-            paymentInfo.savedProfiles.length <
-              paymentInfo.profileCount <
-              parseInt(paymentInfo.profileCount)) &&
-          moment.utc(paymentInfo.validTill).isAfter(atm.utc())
+          paymentInfo.isApproved &&
+          (!paymentInfo.profileCount ||
+            (paymentInfo.savedProfiles.length < paymentInfo.profileCount)) &&
+          moment.utc(paymentInfo.validTill).isAfter(localTime.utc())
         ) {
-          paymentPlan = "Active";
+          finalData.paymentplan = "Active";
         }
       }
-      // Reference Name
-      if (data.referenceCode) {
-        const adminData = await UserBase.findOne({
+
+      if (user.referenceCode) {
+        const admin = await UserBase.findOne({
           __t: "admin",
-          referenceCode: data.referenceCode,
+          referenceCode: user.referenceCode,
         });
-        finalData.referenceName = `${adminData.firstName} ${adminData.lastName}`;
+        finalData.referenceName = admin
+          ? `${admin.firstName} ${admin.lastName}`
+          : "NA";
       } else {
         finalData.referenceName = "NA";
       }
 
-      // Other fields
-      finalData.jobBusiness = data.jobBusiness || "Not Provided";
-      finalData.degreeDiploma = data.degreeDiploma || "Not Provided";
-      finalData.fieldJob = data.fieldJob || "Not Provided";
-      finalData.degreeName = data.degreeName || "Not Provided";
-      finalData.companyName = data.companyName || "Not Provided";
-      finalData.incomeGroup = data.incomeGroup || "Not Provided";
-      finalData.currentAddress = data.currentAddress || "Not Provided";
-      finalData.fullAddress =
-        `${data.currentAddress}, ${data.addressInShort}` || "Not Provided";
+      Object.assign(finalData, {
+        jobBusiness: user.jobBusiness || "Not Provided",
+        degreeDiploma: user.degreeDiploma || "Not Provided",
+        fieldJob: user.fieldJob || "Not Provided",
+        degreeName: user.degreeName || "Not Provided",
+        companyName: user.companyName || "Not Provided",
+        incomeGroup: user.incomeGroup || "Not Provided",
+        currentAddress: user.currentAddress || "Not Provided",
+        fullAddress:
+          user.currentAddress && user.addressInShort
+            ? `${user.currentAddress}, ${user.addressInShort}`
+            : "Not Provided",
+        birthDate: user.birthDate
+          ? `${moment(user.birthDate).format("DD MMMM YYYY")}, ${moment(
+              user.birthDate
+            ).format("dddd")}`
+          : "Not Provided",
+        birthTime: user.birthTime
+          ? moment(user.birthTime, "HH:mm:ss").format("hh:mm A")
+          : "Not Provided",
+        birthPlace: user.birthPlace || "Not Provided",
+        height: user.height ? `${user.height} Feet` : "Not Provided",
+        bloodGroup: user.bloodGroup || "Not Provided",
+        disabilityYN: user.disabilityYN || "Not Applicable",
 
-      // Birth Date and Time Section
-      if (data.birthDate) {
-        const birthDate = moment(data.birthDate).format("DD MMMM YYYY");
-        dayName = moment(data.birthDate).format("dddd");
-        finalData.birthDate = `${birthDate}, ${dayName}`;
-      } else {
-        finalData.birthDate = "Not Provided";
-      }
+        // Expectations
+        selectedEducations: user.selectedEducations || "No bar",
+        selectedIncome: user.selectedIncome || "No bar",
+        expectedEatingHabits: user.expectedEatingHabits || "No bar",
+        expectedGana: user.expectedGana || "No bar",
+        expectedLocality: user.expectedLocality || "No bar",
+        expectedNakshatra: user.expectedNakshatra || "No bar",
+        expectedBloodGroups: user.expectedBloodGroups || "No bar",
+        expectedNaadi: user.expectedNaadi || "No bar",
+        expectedRaas: user.expectedRaas || "No bar",
+        expectedHeight: user.expectedHeight || "No bar",
+        expectedFamilyType: user.expectedFamilyType,
+        selectedSiblingsCousinsUpto:
+          user.selectedSiblingsCousinsUpto || "No bar",
+        expectedAgeGap: user.expectedAgeGapMin && user.expectedAgeGapMax
+          ? `${user.expectedAgeGapMin}-${user.expectedAgeGapMax} years`
+          : "No bar",
+        expectedAgeGapMax: user.expectedAgeGapMax
+          ? `${user.expectedAgeGapMax} years`
+          : "No bar",
+        expectedAgeGapMin: user.expectedAgeGapMin
+          ? `${user.expectedAgeGapMin} years`
+          : "No bar",
+        strictMatch: user.strictMatch ? "Yes" : "No",
+        isVerified: user.isVerified,
+      });
+      // 1. Get all files uploaded by this user
+      const files = await mongoose.connection.db
+        .collection("fs.files")
+        .find({ "metadata.uploadedBy": userId })
+        .toArray();
 
-      if (data.birthTime) {
-        const formattedTime = moment(data.birthTime, "HH:mm:ss").format(
-          "hh:mm A"
-        );
-        finalData.birthTime = formattedTime;
-      } else {
-        finalData.birthTime = "Not Provided";
-      }
+      // 2. For each file, fetch its chunks
+      const media = await Promise.all(
+        files.map(async (file) => {
+          const chunks = await mongoose.connection.db
+            .collection("fs.chunks")
+            .find({ files_id: file._id })
+            .sort({ n: 1 })
+            .project({ data: 1 })
+            .toArray();
+            const joined = chunks.map(c => c.data.toString('base64')).join('');
 
-      finalData.birthPlace = data.birthPlace || "Not Provided";
-      finalData.height = data.height ? `${data.height} Feet` : "Not Provided";
-      finalData.bloodGroup = data.bloodGroup || "Not Provided";
-      finalData.disabilityYN = data.disabilityYN || "Not Applicable";
 
-      // Expectations Section
-      finalData.selectedEducations = data.selectedEducations || "No bar";
-      finalData.selectedIncome = data.selectedIncome || "No bar";
-      finalData.expectedEatingHabits = data.expectedEatingHabits || "No bar";
-      finalData.expectedGana = data.expectedGana || "No bar";
-      finalData.expectedLocality = data.expectedLocality || "No bar";
-      finalData.expectedNakshatra = data.expectedNakshatra || "No bar";
-      finalData.expectedBloodGroups = data.expectedBloodGroups || "No bar";
-      finalData.expectedNaadi = data.expectedNaadi || "No bar";
-      finalData.expectedRaas = data.expectedRaas || "No bar";
-      finalData.expectedHeight = data.expectedHeight || "No bar";
-      finalData.expectedFamilyType = data.expectedFamilyType;
-      finalData.selectedSiblingsCousinsUpto =
-        data.selectedSiblingsCousinsUpto || "No bar";
-      finalData.expectedAgeGap =
-        `${data.expectedAgeGapMin}-${data.expectedAgeGapMax} years` || "No bar";
-      finalData.expectedAgeGapMax = data.expectedAgeGapMax
-        ? `${data.expectedAgeGapMax} years`
-        : "No bar";
-      finalData.expectedAgeGapMin = data.expectedAgeGapMin
-        ? `${data.expectedAgeGapMin} years`
-        : "No bar";
-      finalData.strictMatch = data.strictMatch ? "Yes" : "No";
-      finalData.isVerified = data.isVerified;
-      finalData.paymentplan = paymentPlan;
-      const imageIds = data.images;
-      const { files, fileChunksMap } = await fetchUserImages(imageIds);
-      finalData.allImages = {fileChunksMap:fileChunksMap };
-      return res.status(200).json({ message: "success", data: finalData });
+          return {
+            fileId: file._id,
+            filename: file.filename,
+            contentType: file.contentType,
+            length: file.length,
+            base64: joined,
+          };
+        })
+      );
+      return res.status(200).json({
+        message: "success",
+        data: finalData,
+        media,
+      });
     } catch (error) {
-      console.log(error);
+      console.error(error);
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }

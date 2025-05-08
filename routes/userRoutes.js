@@ -858,41 +858,58 @@ userRoutes.post(
   upload.single("file"),
   async (req, res) => {
     try {
-      const readableFile = new Readable();
-      readableFile.push(req.file.buffer);
-      readableFile.push(null);
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
       const userId = req.user._id;
-      const metadata = {
-        uploadedBy: userId,
-        uploadedAt: new Date(),
-      };
-      const uploadStream = gfsBucket.openUploadStream(req.file.originalname, {
-        contentType: req.file.mimetype,
-        metadata,
+      const user = await Candidate.findById(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      if (user.images.length >= 3) {
+        return res.status(400).json({
+          message: "failure",
+          data: "Only three images are allowed. Kindly delete existing image/images to upload new.",
+        });
+      }
+
+      const { buffer, originalname, mimetype } = req.file;
+      const fileStream = new Readable();
+      fileStream.push(buffer);
+      fileStream.push(null);
+
+      const uploadStream = gfsBucket.openUploadStream(originalname, {
+        contentType: mimetype,
+        metadata: {
+          uploadedBy: userId,
+          uploadedAt: new Date(),
+        },
       });
-      readableFile
+
+      fileStream
         .pipe(uploadStream)
         .on("error", (error) => {
+          console.error("Upload Error:", error);
           res.status(500).json({ message: "Upload Error", error });
         })
         .on("finish", async () => {
-          const user = await Candidate.findById(userId);
-          if (user.images.length >= 3) {
-            return res.status(200).json({
-              message: "failure",
-              data: "Only three images are allowed. Kindly delete existing image/images to upload new.",
-            });
-          }
           user.images.push(uploadStream.id);
           await user.save();
-          res.status(200).json({ fileId: uploadStream.id });
+          res.status(200).json({
+            message: "success",
+            fileId: uploadStream.id,
+            data: "Image uploaded successfully",
+          });
         });
     } catch (error) {
-      console.log(error);
-      return res.status(500).json({ message: "failure", data: error.message });
+      console.error("Upload Handler Error:", error);
+      res.status(500).json({ message: "failure", data: error.message });
     }
   }
 );
+
 
 userRoutes.post(
   "/set-profile-image",
