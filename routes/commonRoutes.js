@@ -711,9 +711,10 @@ commonRoutes.post(
   async (req, res) => {
     try {
       res.clearCookie("token", {
-        httpOnly: true,
-        sameSite: "Lax",
-        secure: true, // For Production
+        httpOnly: true, // Prevent access from JavaScript (security)
+        secure: true, // Use HTTPS (for production)
+        sameSite: "None", // Prevent CSRF attacks
+        // sameSite: "Lax", // For localhost
       });
       return res
         .status(200)
