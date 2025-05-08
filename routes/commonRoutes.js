@@ -17,17 +17,11 @@ dotenv.config();
 
 const commonRoutes = express.Router();
 
-
-commonRoutes.get("/health-check",async(req,res)=>{
-  try{
-    return res
-        .status(200)
-        .json({ message: "success", data: "Healthy" });
-  }
-  catch(error){
-    return res
-    .status(500)
-    .json({ message: "failure", data: error });
+commonRoutes.get("/health-check", async (req, res) => {
+  try {
+    return res.status(200).json({ message: "success", data: "Healthy" });
+  } catch (error) {
+    return res.status(500).json({ message: "failure", data: error });
   }
 });
 
@@ -63,7 +57,7 @@ commonRoutes.post("/user-login", async (req, res) => {
 
     res.cookie("token", token, {
       httpOnly: true, // Prevent access from JavaScript (security)
-      secure: true,    // Use HTTPS (for production)
+      secure: true, // Use HTTPS (for production)
       sameSite: "None", // Prevent CSRF attacks
       // sameSite: "Lax", // For localhost
       maxAge: 24 * 60 * 60 * 1000,
@@ -86,7 +80,7 @@ commonRoutes.get(
   async (req, res) => {
     try {
       const menu = await MenuMaster.find(
-        { __t: req.user.__t },
+        { __t: {$in:[req.user.__t ]} },
         { _id: 0, displayName: 1, path: 1, priority: 1 }
       ).sort({ priority: 1 });
       res.status(200).json({
@@ -131,7 +125,33 @@ commonRoutes.post(
         })
           .skip((pageNumber - 1) * rowsPerPage)
           .limit(rowsPerPage);
-        res
+          for (const u of users) {
+            const media = [];
+            if (u.image && u.image.length > 0) {
+              const file_id = new ObjectId(u.image[0]);
+              const file = await conn.db
+                .collection("fs.files")
+                .findOne({ _id: file_id });
+              const chunks = await conn.db
+                .collection("fs.chunks")
+                .find({ files_id: file_id })
+                .sort({ n: 1 })
+                .toArray();
+              const base64_chunks = chunks.map((chunk) =>
+                chunk.data.toString("base64")
+              );
+              media.push({
+                fileId: file._id.toString(),
+                filename: file.filename || "",
+                contentType: file.contentType || "image/jpeg",
+                length: file.length || 0,
+                chunks: base64_chunks,
+              });
+            }
+            u.profileImage = media; // ✅ assign to each user
+          }
+          
+        return res
           .status(200)
           .json({ message: "success", data: users, totalCount: totalCount });
       }
@@ -152,9 +172,11 @@ commonRoutes.post(
           addressInShort: 1,
           community: 1,
           isVerified: 1,
+          image: 1,
         })
           .skip((pageNumber - 1) * rowsPerPage)
           .limit(rowsPerPage);
+        
         return res
           .status(200)
           .json({ message: "success", data: users, totalCount: totalCount });
@@ -182,6 +204,7 @@ commonRoutes.post(
           .json({ message: "success", data: users, totalCount: totalCount });
       }
     } catch (error) {
+      console.log(error)
       return res.status(500).json({ message: error.message });
     }
   }
@@ -518,12 +541,10 @@ commonRoutes.get(
         finalData.paymentplan = paymentPlan;
         return res.status(200).json({ message: "success", data: finalData });
       } else {
-        return res
-          .status(401)
-          .json({
-            message: "failure",
-            data: "You are unauthorised to get saved profiles",
-          });
+        return res.status(401).json({
+          message: "failure",
+          data: "You are unauthorised to get saved profiles",
+        });
       }
     } catch (error) {
       console.log(error);
@@ -576,7 +597,7 @@ commonRoutes.post("/add-new-candidate", async (req, res) => {
 
       res.cookie("token", token, {
         httpOnly: true, // Prevent access from JavaScript (security)
-        secure: true,    // Use HTTPS (for production)
+        secure: true, // Use HTTPS (for production)
         sameSite: "None", // Prevent CSRF attacks
         // sameSite: "Lax", // For localhost
         maxAge: 24 * 60 * 60 * 1000,
@@ -692,7 +713,7 @@ commonRoutes.post(
       res.clearCookie("token", {
         httpOnly: true,
         sameSite: "Lax",
-        secure:true  // For Production
+        secure: true, // For Production
       });
       return res
         .status(200)
@@ -703,20 +724,14 @@ commonRoutes.post(
   }
 );
 
-commonRoutes.get(
-  "/get-districts",
-  async (req, res) => {
-    try {
-      const disticts = await DistrictMaster.find(
-        { isActive: true },
-        { _id: 0 }
-      );
-      return res.status(200).json({ message: "success", data: disticts });
-    } catch (error) {
-      return res.status(500).json({ message: "failure", data: error.message });
-    }
+commonRoutes.get("/get-districts", async (req, res) => {
+  try {
+    const disticts = await DistrictMaster.find({ isActive: true }, { _id: 0 });
+    return res.status(200).json({ message: "success", data: disticts });
+  } catch (error) {
+    return res.status(500).json({ message: "failure", data: error.message });
   }
-);
+});
 
 commonRoutes.post("/enquire-Services", async (req, res) => {
   try {
@@ -787,7 +802,12 @@ commonRoutes.post("/enquire-Services", async (req, res) => {
       .sendMail(mailOptions)
       .then((info) => console.log("Email sent:", info.response))
       .catch((error) => console.error("Error sending email:", error));
-    return res.status(200).json({message:"success",data:"We have received your enquiry and we will get back to you at the earliest."})
+    return res
+      .status(200)
+      .json({
+        message: "success",
+        data: "We have received your enquiry and we will get back to you at the earliest.",
+      });
   } catch (error) {
     return res.status(500).json({ message: "failure", data: error.message });
   }
@@ -795,14 +815,8 @@ commonRoutes.post("/enquire-Services", async (req, res) => {
 
 commonRoutes.post("/feedback", async (req, res) => {
   try {
-    const {
-      firstName,
-      lastName,
-      contactNumber,
-      emailId,
-      feedback,
-      rating,
-    } = req.body;
+    const { firstName, lastName, contactNumber, emailId, feedback, rating } =
+      req.body;
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -862,8 +876,12 @@ commonRoutes.post("/feedback", async (req, res) => {
       .sendMail(mailOptions)
       .then((info) => console.log("Email sent:", info.response))
       .catch((error) => console.error("Error sending email:", error));
-      return res.status(200).json({message:"success",data:"Thank you for the feedback. We will definitely consider the same."})
-
+    return res
+      .status(200)
+      .json({
+        message: "success",
+        data: "Thank you for the feedback. We will definitely consider the same.",
+      });
   } catch (error) {
     return res.status(500).json({ message: "failure", data: error.message });
   }
@@ -938,8 +956,12 @@ commonRoutes.post("/contact", async (req, res) => {
       .sendMail(mailOptions)
       .then((info) => console.log("Email sent:", info.response))
       .catch((error) => console.error("Error sending email:", error));
-      return res.status(200).json({message:"success",data:"We have received your contact request and we will get back to you as early as possible."})
-
+    return res
+      .status(200)
+      .json({
+        message: "success",
+        data: "We have received your contact request and we will get back to you as early as possible.",
+      });
   } catch (error) {
     return res.status(500).json({ message: "failure", data: error.message });
   }
@@ -947,12 +969,7 @@ commonRoutes.post("/contact", async (req, res) => {
 
 commonRoutes.post("/join-us-as-admins", async (req, res) => {
   try {
-    const {
-      firstName,
-      lastName,
-      contactNumber,
-      emailId
-    } = req.body;
+    const { firstName, lastName, contactNumber, emailId } = req.body;
     const transporter = nodemailer.createTransport({
       service: "gmail",
       auth: {
@@ -1012,8 +1029,12 @@ commonRoutes.post("/join-us-as-admins", async (req, res) => {
       .sendMail(mailOptions)
       .then((info) => console.log("Email sent:", info.response))
       .catch((error) => console.error("Error sending email:", error));
-      return res.status(200).json({message:"success",data:"We have received your admin request and it is under review. We will get back to you as early as possible."})
-
+    return res
+      .status(200)
+      .json({
+        message: "success",
+        data: "We have received your admin request and it is under review. We will get back to you as early as possible.",
+      });
   } catch (error) {
     return res.status(500).json({ message: "failure", data: error.message });
   }
@@ -1025,11 +1046,11 @@ commonRoutes.post("/partner-request", async (req, res) => {
       firstName,
       lastName,
       businessCategory,
-      businessName, 
+      businessName,
       contactNumber,
       emailId,
       website,
-      description
+      description,
     } = req.body;
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -1092,12 +1113,15 @@ commonRoutes.post("/partner-request", async (req, res) => {
       .sendMail(mailOptions)
       .then((info) => console.log("Email sent:", info.response))
       .catch((error) => console.error("Error sending email:", error));
-      return res.status(200).json({message:"success",data:"We have received your partner request and it is under review. We will get back to you as early as possible."})
-
+    return res
+      .status(200)
+      .json({
+        message: "success",
+        data: "We have received your partner request and it is under review. We will get back to you as early as possible.",
+      });
   } catch (error) {
     return res.status(500).json({ message: "failure", data: error.message });
   }
 });
-
 
 export default commonRoutes;

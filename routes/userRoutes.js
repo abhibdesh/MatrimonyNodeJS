@@ -24,13 +24,13 @@ const upload = multer({ storage });
 
 let gfsBucket;
 
-const otpCache = {};
-const WINDOW_SECONDS = 60 * 60; // 1 hour
-const MAX_OTPS = 5;
-
 export function setGridFSBucket(bucket) {
   gfsBucket = bucket;
 }
+
+const otpCache = {};
+const WINDOW_SECONDS = 60 * 60; // 1 hour
+const MAX_OTPS = 5;
 
 userRoutes.post(
   "/update-my-profile",
@@ -149,7 +149,7 @@ userRoutes.get(
     try {
       if (req.user.__t === "candidate") {
         const user = await Candidate.findById(req.user._id, {
-          expectedLocatities:1,
+          expectedLocatities: 1,
           expectedEducations: 1,
           expectedIncome: 1,
           expectedEatingHabits: 1,
@@ -205,7 +205,7 @@ userRoutes.post(
       } = req.body;
 
       await Candidate.findByIdAndUpdate(req.user._id, {
-        expectedLocatities:expectedLocatities,
+        expectedLocatities: expectedLocatities,
         expectedEducations: expectedEducations,
         expectedIncome: expectedIncome,
         expectedEatingHabits: expectedEatingHabits,
@@ -496,12 +496,10 @@ userRoutes.post(
       const otpCreatedAt = lastOTPForUser.createdAt;
 
       if (now - otpCreatedAt > 30 * 60 * 1000) {
-        return res
-          .status(200)
-          .json({
-            message: "failure",
-            data: "OTP is expired. Please request a new OTP to proceed further.",
-          });
+        return res.status(200).json({
+          message: "failure",
+          data: "OTP is expired. Please request a new OTP to proceed further.",
+        });
       }
 
       if (otp === lastOTPForUser.OTP) {
@@ -626,8 +624,7 @@ async function sendOtpToUser(phone, otp, userId) {
   }
 }
 
-async function saveOtp(phone, otp,userId) {
-
+async function saveOtp(phone, otp, userId) {
   await phoneOTP.create({
     userId: userId,
     OTP: otp,
@@ -667,12 +664,10 @@ userRoutes.post(
       const otpCreatedAt = lastOTPForUser.createdAt;
 
       if (now - otpCreatedAt > 30 * 60 * 1000) {
-        return res
-          .status(200)
-          .json({
-            message: "failure",
-            data: "OTP is expired. Please request a new OTP to proceed further.",
-          });
+        return res.status(200).json({
+          message: "failure",
+          data: "OTP is expired. Please request a new OTP to proceed further.",
+        });
       }
 
       if (otp === lastOTPForUser.OTP) {
@@ -694,6 +689,114 @@ userRoutes.post(
           .status(200)
           .json({ message: "failure", data: "Invalid OTP" });
       }
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ message: "failure", data: error.message });
+    }
+  }
+);
+
+userRoutes.get(
+  "/get-images",
+  authMiddleware,
+  updateLastActivity,
+  async (req, res) => {
+    try {
+      const userId = req.user._id;
+      // 1. Get all files uploaded by this user
+      const files = await mongoose.connection.db
+        .collection("fs.files")
+        .find({ "metadata.uploadedBy": userId })
+        .toArray();
+
+      // 2. For each file, fetch its chunks
+      const media = await Promise.all(
+        files.map(async (file) => {
+          const chunks = await mongoose.connection.db
+            .collection("fs.chunks")
+            .find({ files_id: file._id })
+            .sort({ n: 1 })
+            .project({ data: 1 })
+            .toArray();
+
+          return {
+            fileId: file._id,
+            filename: file.filename,
+            contentType: file.contentType,
+            length: file.length,
+            chunks: chunks.map((c) => c.data),
+          };
+        })
+      );
+
+      res.status(200).json({ media });
+    } catch (error) {
+      console.log(error);
+      res.json({ message: "failure" });
+    }
+  }
+);
+
+userRoutes.post(
+  "/upload-image",
+  authMiddleware,
+  updateLastActivity,
+  upload.single("file"),
+  async (req, res) => {
+    try {
+      const readableFile = new Readable();
+      readableFile.push(req.file.buffer);
+      readableFile.push(null);
+      const userId = req.user._id;
+      const metadata = {
+        uploadedBy: userId,
+        uploadedAt: new Date(),
+      };
+      const uploadStream = gfsBucket.openUploadStream(req.file.originalname, {
+        contentType: req.file.mimetype,
+        metadata,
+      });
+      readableFile
+        .pipe(uploadStream)
+        .on("error", (error) => {
+          res.status(500).json({ message: "Upload Error", error });
+        })
+        .on("finish", async () => {
+          const user = await Candidate.findById(userId);
+          if (user.images.length >= 3) {
+            return res
+              .status(200)
+              .json({
+                message: "failure",
+                data: "Only three images are allowed. Kindly delete existing image/images to upload new.",
+              });
+          }
+          user.images.push(uploadStream.id);
+          await user.save();
+          res.status(200).json({ fileId: uploadStream.id });
+        });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ message: "failure", data: error.message });
+    }
+  }
+);
+
+userRoutes.post(
+  "/set-profile-image",
+  authMiddleware,
+  updateLastActivity,
+  async (req, res) => {
+    try {
+      const { imageId } = req.body;
+      await Candidate.findByIdAndUpdate(req.user._id,{$set:{image:[]}})
+      await Candidate.findByIdAndUpdate(req.user._id,{$set:{image:[imageId]}})
+      return res
+      .status(200)
+      .json({
+        message: "success",
+        data: "Profile picture changed successfully",
+      });
     } catch (error) {
       console.log(error);
       return res.status(500).json({ message: "failure", data: error.message });

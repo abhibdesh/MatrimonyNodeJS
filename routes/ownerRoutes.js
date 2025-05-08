@@ -196,8 +196,8 @@ ownerRoutes.post("/mark-settlement-as-done",authMiddleware,updateLastActivity,as
 
 ownerRoutes.post("/add-new-menu",authMiddleware,updateLastActivity,async(req,res)=>{
   try {
-    const { displayName, path, __t, priority } = req.body;
-    await MenuMaster.create({ displayName: displayName, path: path, __t: __t, priority: priority });
+    const { displayName, path, __t, priority, isActive } = req.body;
+    await MenuMaster.create({ displayName: displayName, path: path, __t: __t, priority: priority,isActive:isActive });
     return res
       .status(200)
       .json({ message: "success", data: "Menu created succesfully" });
