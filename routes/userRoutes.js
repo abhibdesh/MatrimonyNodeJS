@@ -232,26 +232,139 @@ userRoutes.post(
   }
 );
 
+async function paginateUsers(query, projection, pageNumber, rowsPerPage) {
+  const totalCount = await Candidate.countDocuments(query);
+  const users = await Candidate.find(query, projection)
+    .skip((pageNumber - 1) * rowsPerPage)
+    .limit(rowsPerPage);
+  return { users, totalCount };
+}
+
+async function fetchUserImages(imageIds) {
+  const filesCursor = mongoose.connection.db
+    .collection("fs.files")
+    .find({ _id: { $in: imageIds } });
+
+  const files = await filesCursor.toArray();
+
+  const chunksCursor = mongoose.connection.db
+    .collection("fs.chunks")
+    .find({ files_id: { $in: imageIds } })
+    .sort({ n: 1 });
+
+  const chunks = await chunksCursor.toArray();
+
+  const fileChunksMap = files.reduce((acc, file) => {
+    const fileChunk = chunks.filter((c) => c.files_id.equals(file._id));
+    acc[file._id.toString()] = fileChunk.map((c) =>
+      Buffer.from(c.data.buffer).toString("base64")
+    );
+    return acc;
+  }, {});
+
+  return { files, fileChunksMap };
+}
+
+function mapUsers(users, files, fileChunksMap) {
+  return users.map((u) => {
+    const fileId = u.image?.[0];
+    const file = files.find((f) =>
+      f._id.equals(new mongoose.Types.ObjectId(fileId))
+    );
+
+    const media = file
+      ? [
+          {
+            fileId: file._id.toString(),
+            filename: file.filename || "",
+            contentType: file.contentType || "image/jpeg",
+            length: file.length,
+            chunks: fileChunksMap[file._id.toString()] || [],
+          },
+        ]
+      : [];
+
+    return {
+      topData: {
+        name: `${u.firstName} ${u.lastName}`,
+        community: u.community,
+        address: u.addressInShort,
+        income:
+          u.jobBusiness && u.incomeGroup
+            ? `${u.jobBusiness}, earns ${u.incomeGroup}`
+            : "NA",
+        _id: u._id,
+        isVerified: u.isVerified,
+        profileImage: media,
+        birthDate: u.birthDate,
+        birthTime: u.birthTime,
+        birthPlace: u.birthPlace,
+      },
+    };
+  });
+}
+
 userRoutes.post(
   "/get-my-saved-profiles",
   authMiddleware,
   updateLastActivity,
   async (req, res) => {
     try {
+      const { rowsPerPage, pageNumber } = req.body;
+
       if (req.user.__t === "candidate") {
         const paymentData = await Payment.find(
           { userEmail: req.user.userEmail },
           { savedProfiles: 1, _id: 0 }
         );
 
-        const userIdList = paymentData
-          .flatMap((entry) => entry.savedProfiles || [])
+        const currentUser = await User.findById(req.user._id);
+        const projection = {
+          firstName: 1,
+          lastName: 1,
+          birthDate: 1,
+          birthTime: 1,
+          birthPlace: 1,
+          incomeGroup: 1,
+          addressInShort: 1,
+          community: 1,
+          isVerified: 1,
+          image: 1,
+          __t: 1,
+        };
+        const userIdList = paymentData.flatMap(
+          (entry) => entry.savedProfiles || []
+        );
+
+        let query = {
+          _id: { $in: userIdList },
+        };
+
+        if (req.user.__t === "candidate") {
+          query.lookingFor = { $ne: currentUser.lookingFor };
+        }
+
+        const { users, totalCount } = await paginateUsers(
+          query,
+          projection,
+          pageNumber,
+          rowsPerPage
+        );
+
+        const imageIds = users
+          .map((u) => u.image?.[0])
           .filter(Boolean)
           .map((id) => new mongoose.Types.ObjectId(id));
+        const { files, fileChunksMap } = await fetchUserImages(imageIds);
+        const finalDataList = mapUsers(users, files, fileChunksMap);
 
-        const profileData = await Candidate.find({ _id: { $in: userIdList } });
-
-        return res.status(200).json({ message: "success", data: profileData });
+        res.json({
+          message: "Success",
+          users: finalDataList,
+          totalCount,
+          currentPage: pageNumber,
+          rowsPerPage,
+        });
       } else {
         return res.status(401).json({
           message: "failure",
@@ -259,6 +372,7 @@ userRoutes.post(
         });
       }
     } catch (error) {
+      console.log(error)
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }
@@ -280,8 +394,8 @@ userRoutes.post(
         if (getLastPayment.isApproved === true) {
           if (getLastPayment.validTill > atm) {
             if (getLastPayment.profileCount !== 0) {
-              const count = getLastPayment.profileCount.toInt32();
-              if (length(getLastPayment.savedProfiles) >= count) {
+              const count = getLastPayment.profileCount;
+              if (getLastPayment.savedProfiles.length >= count) {
                 return res.status(200).json({
                   message: "failure",
                   data: "You have exhausted your profile limit.",
@@ -764,12 +878,10 @@ userRoutes.post(
         .on("finish", async () => {
           const user = await Candidate.findById(userId);
           if (user.images.length >= 3) {
-            return res
-              .status(200)
-              .json({
-                message: "failure",
-                data: "Only three images are allowed. Kindly delete existing image/images to upload new.",
-              });
+            return res.status(200).json({
+              message: "failure",
+              data: "Only three images are allowed. Kindly delete existing image/images to upload new.",
+            });
           }
           user.images.push(uploadStream.id);
           await user.save();
@@ -789,11 +901,11 @@ userRoutes.post(
   async (req, res) => {
     try {
       const { imageId } = req.body;
-      await Candidate.findByIdAndUpdate(req.user._id,{$set:{image:[]}})
-      await Candidate.findByIdAndUpdate(req.user._id,{$set:{image:[imageId]}})
-      return res
-      .status(200)
-      .json({
+      await Candidate.findByIdAndUpdate(req.user._id, { $set: { image: [] } });
+      await Candidate.findByIdAndUpdate(req.user._id, {
+        $set: { image: [imageId] },
+      });
+      return res.status(200).json({
         message: "success",
         data: "Profile picture changed successfully",
       });

@@ -93,6 +93,86 @@ commonRoutes.get(
     }
   }
 );
+async function paginateUsers(query, projection, pageNumber, rowsPerPage) {
+  const totalCount = await Candidate.countDocuments(query);
+  const users = await Candidate.find(query, projection)
+    .skip((pageNumber - 1) * rowsPerPage)
+    .limit(rowsPerPage);
+  return { users, totalCount };
+}
+function applyFilters(query, filters, currentUser) {
+  const mergeOrFallback = (key, fallbackKey) => {
+    return filters[key]?.length > 0
+      ? filters[key]
+      : currentUser[fallbackKey] || [];
+  };
+
+  const mapFilters = [
+    ["incomeGroup", "selectedEducations", "expectedEducations"],
+    ["addressInShort", "selectedLocatities", "expectedLocatities"],
+    ["incomeGroup", "selectedIncome", "expectedIncome"],
+    ["eatingHabits", "expectedEatingHabits", "expectedEatingHabits"],
+    ["gana", "expectedGana", "expectedGana"],
+    ["nakshatra", "expectedNakshatra", "expectedNakshatra"],
+    ["bloodGroup", "expectedBloodGroups", "expectedBloodGroups"],
+    ["naadi", "expectedNaadi", "expectedNaadi"],
+    ["raas", "expectedRaas", "expectedRaas"],
+    ["familyType", "expectedFamilyType", "expectedFamilyType"],
+    [
+      "selectedSiblingsCousinsUpto",
+      "selectedSiblingsCousinsUpto",
+      "expectedSiblingsCousinsUpto",
+    ],
+    ["profileWithImages", "profileWithImages", "profileWithImages"],
+  ];
+
+  for (const [field, userFilterKey, fallbackKey] of mapFilters) {
+    const vals = mergeOrFallback(userFilterKey, fallbackKey);
+    if (vals.length > 0) {
+      query[field] = { $in: vals };
+    }
+  }
+}
+
+
+function mapUsers(users, files, fileChunksMap) {
+  return users.map((u) => {
+    const fileId = u.image?.[0];
+    const file = files.find((f) =>
+      f._id.equals(new mongoose.Types.ObjectId(fileId))
+    );
+
+    const media = file
+      ? [
+          {
+            fileId: file._id.toString(),
+            filename: file.filename || "",
+            contentType: file.contentType || "image/jpeg",
+            length: file.length,
+            chunks: fileChunksMap[file._id.toString()] || [],
+          },
+        ]
+      : [];
+
+    return {
+      topData: {
+        name: `${u.firstName} ${u.lastName}`,
+        community: u.community,
+        address: u.addressInShort,
+        income:
+          u.jobBusiness && u.incomeGroup
+            ? `${u.jobBusiness}, earns ${u.incomeGroup}`
+            : "NA",
+        _id: u._id,
+        isVerified: u.isVerified,
+        profileImage: media,
+        birthDate: u.birthDate,
+        birthTime: u.birthTime,
+        birthPlace: u.birthPlace,
+      },
+    };
+  });
+}
 
 // TODO: Need to work on filters and add preferences
 commonRoutes.post(
@@ -102,219 +182,64 @@ commonRoutes.post(
   async (req, res) => {
     try {
       const { filters, rowsPerPage, pageNumber } = req.body;
-      const currentUser = await UserBase.findOne({_id:new mongoose.Types.ObjectId(req.user._id)});
+      const currentUser = await UserBase.findById(req.user._id);
+      const projection = {
+        firstName: 1,
+        lastName: 1,
+        birthDate: 1,
+        birthTime: 1,
+        birthPlace: 1,
+        incomeGroup: 1,
+        addressInShort: 1,
+        community: 1,
+        isVerified: 1,
+        image: 1,
+        __t: 1,
+      };
+
+      let query = {
+        _id: { $ne: currentUser._id },
+        __t: "candidate",
+        isDeleted: false,
+        isActive: true,
+      };
 
       if (req.user.__t === "candidate") {
-        const projection = {
-          firstName: 1,
-          lastName: 1,
-          birthDate: 1,
-          birthTime: 1,
-          birthPlace: 1,
-          incomeGroup: 1,
-          addressInShort: 1,
-          community: 1,
-          isVerified: 1,
-          image: 1,
-          __t: 1,
-        };
-        const query = {
-          _id: { $ne: currentUser._id },
-          __t: "candidate",
-          isDeleted: false,
-          isActive: true,
-          lookingFor: { $ne: currentUser.lookingFor },
-          // isEmailVerified: true,
-          // isPhoneVerified: true,
-        };
-
-        //TODO: AS PER BIRTH YEAR
-        // Handle age
-        // if (filters.expectedAgeGapMin && filters.expectedAgeGapMax) {
-        //   query.birthDate = {
-        //     $gte: new Date(filters.expectedAgeGapMin, 0, 1),
-        //     $lte: new Date(filters.expectedAgeGapMax, 11, 31)
-        //   };
-        // }
-
-        // Height
-        // if (filters.selectedFromHeight > 0 && filters.selectedToHeight > 0) {
-        //   query.height = {
-        //     $gte: parseFloat(filters.selectedFromHeight),
-        //     $lte: parseFloat(filters.selectedToHeight)
-        //   };
-        // }
-
-        // Siblings
-        // if (filters.selectedSiblingsCousinsUpto > 0) {
-        //   query.siblingCount = { $lte: parseInt(filters.selectedSiblingsCousinsUpto) };
-        // }
-
-        // Merge filters from current user if not provided
-        // const mergeOrFallback = (key, fallbackKey) => {
-        //   return filters[key]?.length > 0
-        //     ? filters[key]
-        //     : currentUser[fallbackKey] || [];
-        // };
-
-        const mapFilters = [
-          // [MongoDB , Filter, currentUserExpectations]
-          ["incomeGroup", "selectedEducations", "expectedEducations"],
-          ["addressInShort", "selectedLocatities", "expectedLocatities"],
-          ["incomeGroup", "selectedIncome", "expectedIncome"],
-          ["eatingHabits", "expectedEatingHabits", "expectedEatingHabits"],
-          ["gana", "expectedGana", "expectedGana"],
-          ["nakshatra", "expectedNakshatra", "expectedNakshatra"],
-          // ['Raas', 'expectedAgeGapMin', 'expectedYearBeginning'],
-          // ['Raas', 'expectedAgeGapMax', 'expectedYearEnding'],
-          ["bloodGroup", "expectedBloodGroups", "expectedBloodGroups"],
-          ["naadi", "expectedNaadi", "expectedNaadi"],
-          ["raas", "expectedRaas", "expectedRaas"],
-          // ['Raas', 'selectedFromHeight', 'expectedFromHeight],
-          // ['Raas', 'selectedToHeight', 'expectedToHeight'],
-          ["familyType", "expectedFamilyType", "expectedFamilyType"],
-          [
-            "selectedSiblingsCousinsUpto",
-            "selectedSiblingsCousinsUpto",
-            "expectedSiblingsCousinsUpto",
-          ],
-          ["profileWithImages", "profileWithImages", "profileWithImages"],
-        ];
-
-        // for (const [field, userFilterKey, fallbackKey] of mapFilters) {
-        //   const vals = mergeOrFallback(userFilterKey, fallbackKey);
-        //   if (vals.length > 0) query[field] = { $in: vals };
-        // }
-
-        const totalCount = await Candidate.countDocuments(query);
-        const users = await Candidate.find(query, projection)
-          .skip((pageNumber - 1) * rowsPerPage)
-          .limit(rowsPerPage);
-
-        const imageIds = users
-          .map((u) => u.image?.[0])
-          .filter(Boolean)
-          .map((id) => new mongoose.Types.ObjectId(id));
-
-        console.log("Image IDs:", imageIds);
-
-        const filesCursor = mongoose.connection.db
-          .collection("fs.files")
-          .find({ _id: { $in: imageIds } });
-
-        const files = await filesCursor.toArray();
-
-        const chunksCursor = mongoose.connection.db
-          .collection("fs.chunks")
-          .find({ files_id: { $in: imageIds } })
-          .sort({ n: 1 });
-
-        const chunks = await chunksCursor.toArray();
-
-        const fileChunksMap = files.reduce((acc, file) => {
-          const fileChunk = chunks.filter((c) => c.files_id.equals(file._id));
-          acc[file._id.toString()] = fileChunk.map((c) =>
-            Buffer.from(c.data.buffer).toString("base64")
-          ); 
-          return acc;
-        }, {});
-
-        const finalDataList = users.map((u) => {
-          const fileId = u.image?.[0];
-          const file = files.find((f) =>
-            f._id.equals(new mongoose.Types.ObjectId(fileId))
-          );
-
-          const media = file
-            ? [
-                {
-                  fileId: file._id.toString(),
-                  filename: file.filename || "",
-                  contentType: file.contentType || "image/jpeg",
-                  length: file.length,
-                  chunks: fileChunksMap[file._id.toString()] || [],
-                },
-              ]
-            : [];
-
-          return {
-            topData: {
-              name: `${u.firstName} ${u.lastName}`,
-              community: u.community,
-              address: u.addressInShort,
-              income:
-                u.jobBusiness && u.incomeGroup
-                  ? `${u.jobBusiness}, earns ${u.incomeGroup}`
-                  : "NA",
-              _id: u._id,
-              isVerified: u.isVerified,
-              profileImage: media,
-              birthDate: u.birthDate,
-              birthTime: u.birthTime,
-              birthPlace: u.birthPlace,
-            },
-          };
-        });
-
-        return res.json({
-          message: "Success",
-          users: finalDataList,
-          totalCount,
-          currentPage: pageNumber,
-          rowsPerPage,
-        });
-      }
-      if (req.user.__t === "admin") {
+        query.lookingFor = { $ne: currentUser.lookingFor };
+        applyFilters(query, filters, currentUser);
+      } else if (req.user.__t === "admin") {
         const admin = await Admin.findById(req.user._id);
-        const updatedFilter = filters;
-        updatedFilter.__t = "candidate";
-        updatedFilter.referenceCode = admin.referenceCode;
-        const totalCount = await Candidate.countDocuments(updatedFilter);
-        const users = await Candidate.find(updatedFilter, {
-          _id: 1,
-          firstName: 1,
-          lastName: 1,
-          birthDate: 1,
-          birthTime: 1,
-          birthPlace: 1,
-          incomeGroup: 1,
-          addressInShort: 1,
-          community: 1,
-          isVerified: 1,
-          image: 1,
-        })
-          .skip((pageNumber - 1) * rowsPerPage)
-          .limit(rowsPerPage);
+        query.referenceCode = admin.referenceCode;
+        applyFilters(query, filters, currentUser);
+      } else if (req.user.__t === "owner") {
+        delete query.__t;
+        delete query.lookingFor;
+      }
 
-        return res
-          .status(200)
-          .json({ message: "success", data: users, totalCount: totalCount });
-      }
-      if (req.user.__t === "owner") {
-        const totalCount = await Candidate.countDocuments();
-        const users = await UserBase.find(
-          { _id: { $ne: currentUser } },
-          {
-            _id: 1,
-            firstName: 1,
-            lastName: 1,
-            birthDate: 1,
-            birthTime: 1,
-            birthPlace: 1,
-            incomeGroup: 1,
-            addressInShort: 1,
-            isVerified: 1,
-          }
-        )
-          .skip((pageNumber - 1) * rowsPerPage)
-          .limit(rowsPerPage);
-        return res
-          .status(200)
-          .json({ message: "success", data: users, totalCount: totalCount });
-      }
-    } catch (error) {
-      console.log(error);
-      return res.status(500).json({ message: error.message });
+      const { users, totalCount } = await paginateUsers(
+        query,
+        projection,
+        pageNumber,
+        rowsPerPage
+      );
+
+      const imageIds = users
+        .map((u) => u.image?.[0])
+        .filter(Boolean)
+        .map((id) => new mongoose.Types.ObjectId(id));
+      const { files, fileChunksMap } = await fetchUserImages(imageIds);
+      const finalDataList = mapUsers(users, files, fileChunksMap);
+
+      res.json({
+        message: "Success",
+        users: finalDataList,
+        totalCount,
+        currentPage: pageNumber,
+        rowsPerPage,
+      });
+    } catch (err) {
+      console.error("Error in /get-all-users", err);
+      res.status(500).json({ message: "Internal Server Error" });
     }
   }
 );
@@ -467,6 +392,9 @@ commonRoutes.get(
       finalData.strictMatch = data.strictMatch ? "Yes" : "No";
       finalData.isVerified = data.isVerified;
       finalData.paymentplan = paymentPlan;
+      const imageIds = data.images;
+      const { files, fileChunksMap } = await fetchUserImages(imageIds);
+      finalData.allImages = {fileChunksMap:fileChunksMap };
       return res.status(200).json({ message: "success", data: finalData });
     } catch (error) {
       console.log(error);
@@ -474,6 +402,32 @@ commonRoutes.get(
     }
   }
 );
+
+async function fetchUserImages(imageIds) {
+  const filesCursor = mongoose.connection.db
+    .collection("fs.files")
+    .find({ _id: { $in: imageIds } });
+
+  const files = await filesCursor.toArray();
+
+  const chunksCursor = mongoose.connection.db
+    .collection("fs.chunks")
+    .find({ files_id: { $in: imageIds } })
+    .sort({ n: 1 });
+
+  const chunks = await chunksCursor.toArray();
+
+  const fileChunksMap = files.reduce((acc, file) => {
+    const fileChunk = chunks.filter((c) => c.files_id.equals(file._id));
+    acc[file._id.toString()] = fileChunk.map((c) =>
+      Buffer.from(c.data.buffer).toString("base64")
+    );
+    return acc;
+  }, {});
+
+  return { files, fileChunksMap };
+}
+
 
 commonRoutes.get(
   "/saved-profiles/get-profile-by-id/:userId",

@@ -52,7 +52,6 @@ ownerRoutes.post("/add-admin",authMiddleware,updateLastActivity, async (req, res
 
 ownerRoutes.get("/get-payments-to-approve",authMiddleware,updateLastActivity,async(req,res)=>{
     try{
-      const {rowsPerPage, pageNumber } = req.body;
 
       // if(req.user.__t !== "owner"){
       //   return res
@@ -66,7 +65,7 @@ ownerRoutes.get("/get-payments-to-approve",authMiddleware,updateLastActivity,asy
       // else{
       const  totalCount= await Payment.countDocuments({isApproved:false,isPaymentSettled:false});
         
-      const pendingPayments = await Payment.find({isApproved:false,isPaymentSettled:false}).skip((pageNumber - 1) * rowsPerPage).limit(rowsPerPage);
+      const pendingPayments = await Payment.find({isApproved:false,isPaymentSettled:false});
         return res.status(200).json({message:"success",data:pendingPayments,totalCount:totalCount})
       // }
 
