@@ -722,8 +722,74 @@ commonRoutes.post("/forgot-password", async (req, res) => {
         bcc: "vickys2962@gmail.com;abhibdesh@gmail.com",
         subject: "Password Change Request",
         html: `
-          <p>Your new password is: <strong>${newPassword}</strong></p>
-          <p>Please log in and change your password from the "Change Password" menu.</p>
+         <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8" />
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f7fa;
+            margin: 0;
+            padding: 0;
+          }
+          .container {
+            max-width: 600px;
+            margin: 30px auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+          }
+          .header {
+            text-align: center;
+            background-color: #e68a9e;
+            padding: 20px;
+            font-size: 24px;
+          }
+          .content {
+            padding: 20px;
+            font-size: 16px;
+            color: #333333;
+            line-height: 1.6;
+          }
+          .otp-box {
+            display: inline-block;
+            background-color:rgb(252, 237, 255);
+            border: 1px dashed #e68a9e;
+            font-size: 24px;
+            font-weight: bold;
+            padding: 12px 24px;
+            margin: 20px 0;
+            border-radius: 6px;
+            letter-spacing: 4px;
+          }
+          .footer {
+            text-align: center;
+            font-size: 13px;
+            color: #888888;
+            margin-top: 30px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">Verify Your Email</div>
+          <div class="content">
+            <p>Hi ${userEmail},</p>
+            <p>We received a password reset from this account. Your new password is:</p>
+            <div class="otp-box">${newPassword}</div>
+            <p>We request you to login via this password and change it immediately from change password menu.</p>
+            <p>If you did not request this, please ignore this email.</p>
+            <p>Best regards,<br />Team Fyjix</p>
+          </div>
+          <div class="footer">
+            &copy; ${new Date().getFullYear()} Suta Bandhan By Fyjix. All rights reserved.
+          </div>
+        </div>
+      </body>
+      </html>
         `,
       };
       transporter
