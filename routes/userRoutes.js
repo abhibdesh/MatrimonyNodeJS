@@ -506,7 +506,7 @@ userRoutes.post(
       });
 
       const mailOptions = {
-        from: process.env.GMAIL_USER,
+        from: `"Suta Bandhan Support" <${process.env.GMAIL_USER}>`,
         to: req.user.userEmail,
         bcc: "vickys2962@gmail.com;abhibdesh@gmail.com",
         subject: "Email Verification",

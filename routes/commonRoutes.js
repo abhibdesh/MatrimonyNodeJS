@@ -134,7 +134,6 @@ function applyFilters(query, filters, currentUser) {
   }
 }
 
-
 function mapUsers(users, files, fileChunksMap) {
   return users.map((u) => {
     const fileId = u.image?.[0];
@@ -303,9 +302,9 @@ commonRoutes.get(
       });
 
       const userIdList = allPayments
-        .flatMap(p => p.savedProfiles || [])
+        .flatMap((p) => p.savedProfiles || [])
         .filter(Boolean)
-        .map(id => id);
+        .map((id) => id);
 
       if (paymentInfo) {
         if (userIdList.includes(user._id.toString())) {
@@ -315,7 +314,7 @@ commonRoutes.get(
         if (
           paymentInfo.isApproved &&
           (!paymentInfo.profileCount ||
-            (paymentInfo.savedProfiles.length < paymentInfo.profileCount)) &&
+            paymentInfo.savedProfiles.length < paymentInfo.profileCount) &&
           moment.utc(paymentInfo.validTill).isAfter(localTime.utc())
         ) {
           finalData.paymentplan = "Active";
@@ -373,9 +372,10 @@ commonRoutes.get(
         expectedFamilyType: user.expectedFamilyType,
         selectedSiblingsCousinsUpto:
           user.selectedSiblingsCousinsUpto || "No bar",
-        expectedAgeGap: user.expectedAgeGapMin && user.expectedAgeGapMax
-          ? `${user.expectedAgeGapMin}-${user.expectedAgeGapMax} years`
-          : "No bar",
+        expectedAgeGap:
+          user.expectedAgeGapMin && user.expectedAgeGapMax
+            ? `${user.expectedAgeGapMin}-${user.expectedAgeGapMax} years`
+            : "No bar",
         expectedAgeGapMax: user.expectedAgeGapMax
           ? `${user.expectedAgeGapMax} years`
           : "No bar",
@@ -400,8 +400,7 @@ commonRoutes.get(
             .sort({ n: 1 })
             .project({ data: 1 })
             .toArray();
-            const joined = chunks.map(c => c.data.toString('base64')).join('');
-
+          const joined = chunks.map((c) => c.data.toString("base64")).join("");
 
           return {
             fileId: file._id,
@@ -449,7 +448,6 @@ async function fetchUserImages(imageIds) {
   return { files, fileChunksMap };
 }
 
-
 // routes/commonRoutes.js
 
 commonRoutes.get(
@@ -495,7 +493,9 @@ commonRoutes.get(
         companyName: data.companyName || "Not Provided",
         incomeGroup: data.incomeGroup || "Not Provided",
         currentAddress: data.currentAddress || "Not Provided",
-        fullAddress: data.addressInShort ? `${data.currentAddress}, ${data.addressInShort}` : "Not Provided",
+        fullAddress: data.addressInShort
+          ? `${data.currentAddress}, ${data.addressInShort}`
+          : "Not Provided",
         birthPlace: data.birthPlace || "Not Provided",
         height: data.height ? `${data.height} Feet` : "Not Provided",
         bloodGroup: data.bloodGroup || "Not Provided",
@@ -526,17 +526,27 @@ commonRoutes.get(
         expectedRaas: data.expectedRaas,
         expectedHeight: data.expectedHeight || "No bar",
         expectedFamilyType: data.expectedFamilyType,
-        selectedSiblingsCousinsUpto: data.selectedSiblingsCousinsUpto || "No bar",
-        expectedAgeGap: data.expectedAgeGapMin && data.expectedAgeGapMax ? `${data.expectedAgeGapMin}-${data.expectedAgeGapMax} years` : "No bar",
-        expectedAgeGapMax: data.expectedAgeGapMax ? `${data.expectedAgeGapMax} years` : "No bar",
-        expectedAgeGapMin: data.expectedAgeGapMin ? `${data.expectedAgeGapMin} years` : "No bar",
+        selectedSiblingsCousinsUpto:
+          data.selectedSiblingsCousinsUpto || "No bar",
+        expectedAgeGap:
+          data.expectedAgeGapMin && data.expectedAgeGapMax
+            ? `${data.expectedAgeGapMin}-${data.expectedAgeGapMax} years`
+            : "No bar",
+        expectedAgeGapMax: data.expectedAgeGapMax
+          ? `${data.expectedAgeGapMax} years`
+          : "No bar",
+        expectedAgeGapMin: data.expectedAgeGapMin
+          ? `${data.expectedAgeGapMin} years`
+          : "No bar",
         strictMatch: data.strictMatch ? "Yes" : "No",
         isVerified: data.isVerified,
       };
 
       if (data.birthDate) {
         const birthMoment = moment(data.birthDate);
-        finalData.birthDate = `${birthMoment.format("DD MMMM YYYY")}, ${birthMoment.format("dddd")}`;
+        finalData.birthDate = `${birthMoment.format(
+          "DD MMMM YYYY"
+        )}, ${birthMoment.format("dddd")}`;
       } else {
         finalData.birthDate = "Not Provided";
       }
@@ -558,23 +568,33 @@ commonRoutes.get(
 
       if (paymentInfo) {
         const hasProfile = paymentInfo.savedProfiles.includes(data._id);
-        const isApproved = paymentInfo.isApproved === true || paymentInfo.isApproved === 1;
+        const isApproved =
+          paymentInfo.isApproved === true || paymentInfo.isApproved === 1;
         const isValid = moment.utc(paymentInfo.validTill).isAfter(now.utc());
 
         finalData.isAlreadyAdded = hasProfile;
-        if (isApproved && isValid &&
+        if (
+          isApproved &&
+          isValid &&
           (paymentInfo.profileCount === 0 ||
-            paymentInfo.savedProfiles.length < parseInt(paymentInfo.profileCount))) {
+            paymentInfo.savedProfiles.length <
+              parseInt(paymentInfo.profileCount))
+        ) {
           paymentPlan = "Active";
         }
 
         if (hasProfile && isApproved && isValid) {
-          emailIdString = data.isEmailVerified ? data.userEmail : "Unverified Email By Candidate";
-          contactNumberString = data.isPhoneVerified ? data.phoneNumber : "Unverified Phone Number By Candidate";
+          emailIdString = data.isEmailVerified
+            ? data.userEmail
+            : "Unverified Email By Candidate";
+          contactNumberString = data.isPhoneVerified
+            ? data.phoneNumber
+            : "Unverified Phone Number By Candidate";
 
           const currUser = await UserBase.findOne({ _id: req.user._id });
           if (!currUser.isEmailVerified) emailIdString = "Verify Your Email";
-          if (!currUser.isPhoneVerified) contactNumberString = "Verify Your Mobile Number";
+          if (!currUser.isPhoneVerified)
+            contactNumberString = "Verify Your Mobile Number";
         }
       }
 
@@ -588,45 +608,47 @@ commonRoutes.get(
           __t: "admin",
           referenceCode: data.referenceCode,
         });
-        finalData.referenceName = adminData ? `${adminData.firstName} ${adminData.lastName}` : "NA";
+        finalData.referenceName = adminData
+          ? `${adminData.firstName} ${adminData.lastName}`
+          : "NA";
       } else {
         finalData.referenceName = "NA";
       }
       const files = await mongoose.connection.db
-      .collection("fs.files")
-      .find({ "metadata.uploadedBy": userId })
-      .toArray();
+        .collection("fs.files")
+        .find({ "metadata.uploadedBy": userId })
+        .toArray();
 
-    // 2. For each file, fetch its chunks
-    const media = await Promise.all(
-      files.map(async (file) => {
-        const chunks = await mongoose.connection.db
-          .collection("fs.chunks")
-          .find({ files_id: file._id })
-          .sort({ n: 1 })
-          .project({ data: 1 })
-          .toArray();
-          const joined = chunks.map(c => c.data.toString('base64')).join('');
+      // 2. For each file, fetch its chunks
+      const media = await Promise.all(
+        files.map(async (file) => {
+          const chunks = await mongoose.connection.db
+            .collection("fs.chunks")
+            .find({ files_id: file._id })
+            .sort({ n: 1 })
+            .project({ data: 1 })
+            .toArray();
+          const joined = chunks.map((c) => c.data.toString("base64")).join("");
 
+          return {
+            fileId: file._id,
+            filename: file.filename,
+            contentType: file.contentType,
+            length: file.length,
+            base64: joined,
+          };
+        })
+      );
 
-        return {
-          fileId: file._id,
-          filename: file.filename,
-          contentType: file.contentType,
-          length: file.length,
-          base64: joined,
-        };
-      })
-    );
-
-      return res.status(200).json({ message: "success", data: finalData,media });
+      return res
+        .status(200)
+        .json({ message: "success", data: finalData, media });
     } catch (error) {
       console.error(error);
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }
 );
-
 
 commonRoutes.post("/add-new-candidate", async (req, res) => {
   try {
@@ -894,7 +916,7 @@ commonRoutes.post("/enquire-Services", async (req, res) => {
     });
 
     const mailOptions = {
-      from: process.env.GMAIL_USER,
+      from: `"Suta Bandhan Support" <${process.env.GMAIL_USER}>`,
       to: "vickys2962@gmail.com;abhibdesh@gmail.com",
       subject: "Service Enquiry",
       html: `
@@ -953,6 +975,111 @@ commonRoutes.post("/enquire-Services", async (req, res) => {
   }
 });
 
+commonRoutes.post("/request-info", async (req, res) => {
+  try {
+    const {
+      userId,
+      reqList,
+      firstNameReceiver
+    } = req.body;
+
+    const currentUser = await Candidate.findById(req.user._id)
+    const receiver = await Candidate.findById(userId)
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_PASS,
+      },
+    });
+
+    const mailOptions = {
+      from: `"Suta Bandhan Support" <${process.env.GMAIL_USER}>`,
+      to: receiver.userEmail,
+      bcc: "vickys2962@gmail.com;abhibdesh@gmail.com",
+      subject: "Information Request",
+      html: `<!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8" />
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f7fa;
+            margin: 0;
+            padding: 0;
+          }
+          .container {
+            max-width: 600px;
+            margin: 30px auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+          }
+          .header {
+            text-align: center;
+            background-color: #e68a9e;
+            padding: 20px;
+            font-size: 24px;
+          }
+          .content {
+            padding: 20px;
+            font-size: 16px;
+            color: #333333;
+            line-height: 1.6;
+          }
+          .otp-box {
+            display: inline-block;
+            background-color:rgb(252, 237, 255);
+            border: 1px dashed #e68a9e;
+            font-size: 24px;
+            font-weight: bold;
+            padding: 12px 24px;
+            margin: 20px 0;
+            border-radius: 6px;
+            letter-spacing: 4px;
+          }
+          .footer {
+            text-align: center;
+            font-size: 13px;
+            color: #888888;
+            margin-top: 30px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">Information Request</div>
+          <div class="content">
+            <p>Hi ${firstNameReceiver},</p>
+            <p>${currentUser.firstName} ${currentUser.lastName} has requested the following information:</p>
+            <p>${reqList}</p>
+            <p>Best regards,<br />Team Fyjix</p>
+          </div>
+          <div class="footer">
+            &copy; ${new Date().getFullYear()} Suta Bandhan By Fyjix. All rights reserved.
+          </div>
+        </div>
+      </body>
+      </html>
+        `,
+    };
+    transporter
+      .sendMail(mailOptions)
+      .then((info) => console.log("Email sent:", info.response))
+      .catch((error) => console.error("Error sending email:", error));
+    return res.status(200).json({
+      message: "success",
+      data: "We have received your enquiry and we will get back to you at the earliest.",
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "failure", data: error.message });
+  }
+});
+
 commonRoutes.post("/feedback", async (req, res) => {
   try {
     const { firstName, lastName, contactNumber, emailId, feedback, rating } =
@@ -966,7 +1093,7 @@ commonRoutes.post("/feedback", async (req, res) => {
     });
 
     const mailOptions = {
-      from: process.env.GMAIL_USER,
+      from: `"Suta Bandhan Support" <${process.env.GMAIL_USER}>`,
       to: "vickys2962@gmail.com;abhibdesh@gmail.com",
       subject: "Feedback",
       html: `
@@ -1044,7 +1171,7 @@ commonRoutes.post("/contact", async (req, res) => {
     });
 
     const mailOptions = {
-      from: process.env.GMAIL_USER,
+      from: `"Suta Bandhan Support" <${process.env.GMAIL_USER}>`,
       to: "vickys2962@gmail.com;abhibdesh@gmail.com",
       subject: "Contact Request",
       html: `
@@ -1115,10 +1242,8 @@ commonRoutes.post("/join-us-as-admins", async (req, res) => {
     });
 
     const mailOptions = {
-      from: process.env.GMAIL_USER,
-      // to: req.user.userEmail,
-      to: "abhi10900@gmail.com",
-      // to: "vickys2962@gmail.com",
+      from: `"Suta Bandhan Support" <${process.env.GMAIL_USER}>`,
+      to: "vickys2962@gmail.com;abhibdesh@gmail.com",
       subject: "Admin Request",
       html: `
                   <!DOCTYPE html>
@@ -1195,7 +1320,7 @@ commonRoutes.post("/partner-request", async (req, res) => {
     });
 
     const mailOptions = {
-      from: process.env.GMAIL_USER,
+      from: `"Suta Bandhan Support" <${process.env.GMAIL_USER}>`,
       to: "vickys2962@gmail.com;abhibdesh@gmail.com",
       subject: "Partner Request",
       html: `
