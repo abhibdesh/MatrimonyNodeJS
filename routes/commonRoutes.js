@@ -726,18 +726,10 @@ commonRoutes.post("/forgot-password", async (req, res) => {
           <p>Please log in and change your password from the "Change Password" menu.</p>
         `,
       };
-      transporter = nodemailer.createTransport({
-        host: "smtp.gmail.com",
-        port: 587,
-        secure: false,
-        auth: {
-          user: process.env.GMAIL_USER,
-          pass: process.env.GMAIL_PASS,
-        },
-        logger: true,
-        debug: true,
-      });
-      
+      transporter
+        .sendMail(mailOptions)
+        .then((info) => console.log("Email sent:", info.response))
+        .catch((error) => console.error("Error sending email:", error));
       await UserBase.findOneAndUpdate(
         { userEmail: userEmail },
         { $set: { userPassword: hashedPassword } }
