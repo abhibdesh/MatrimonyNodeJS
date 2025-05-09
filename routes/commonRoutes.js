@@ -717,7 +717,7 @@ commonRoutes.post("/forgot-password", async (req, res) => {
       });
 
       const mailOptions = {
-        from: process.env.GMAIL_USER,
+        from: `"Suta Bandhan Support" <${process.env.GMAIL_USER}>`,
         to: userEmail,
         bcc: "vickys2962@gmail.com;abhibdesh@gmail.com",
         subject: "Password Change Request",
@@ -726,10 +726,18 @@ commonRoutes.post("/forgot-password", async (req, res) => {
           <p>Please log in and change your password from the "Change Password" menu.</p>
         `,
       };
-      transporter
-        .sendMail(mailOptions)
-        .then((info) => console.log("Email sent:", info.response))
-        .catch((error) => console.error("Error sending email:", error));
+      transporter = nodemailer.createTransport({
+        host: "smtp.gmail.com",
+        port: 587,
+        secure: false,
+        auth: {
+          user: process.env.GMAIL_USER,
+          pass: process.env.GMAIL_PASS,
+        },
+        logger: true,
+        debug: true,
+      });
+      
       await UserBase.findOneAndUpdate(
         { userEmail: userEmail },
         { $set: { userPassword: hashedPassword } }
