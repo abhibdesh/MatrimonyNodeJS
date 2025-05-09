@@ -775,7 +775,7 @@ commonRoutes.post("/forgot-password", async (req, res) => {
       </head>
       <body>
         <div class="container">
-          <div class="header">Verify Your Email</div>
+          <div class="header">Password Reset</div>
           <div class="content">
             <p>Hi ${userEmail},</p>
             <p>We received a password reset from this account. Your new password is:</p>
