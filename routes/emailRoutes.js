@@ -2,6 +2,8 @@ import express from "express";
 import authMiddleware from "../middleware/auth.js";
 import updateLastActivity from "../middleware/updateLastActivity.js";
 import Candidate from "../models/User.js";
+import nodemailer from "nodemailer";
+
 
 const emailRoutes = express.Router();
 
