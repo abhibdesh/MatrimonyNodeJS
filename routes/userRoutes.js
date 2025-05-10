@@ -642,23 +642,20 @@ userRoutes.post(
   }
 );
 
-userRoutes.get(
-  "/webhook",
-  authMiddleware,
-  updateLastActivity,
-  async (req, res) => {
-    const mode = req.query["hub.mode"];
-    const token = req.query["hub.verify_token"];
-    const challenge = req.query["hub.challenge"];
-
-    if (mode === "subscribe" && token === process.env.META_VERIFY_TOKEN) {
-      console.log("Webhook Verified");
-      return res.status(200).send(challenge);
-    }
-
-    res.sendStatus(403);
+userRoutes.get("/webhook", async (req, res) => {
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+  console.log("webhook 1");
+  if (mode === "subscribe" && token === process.env.META_VERIFY_TOKEN) {
+    console.log("webhook 1.1");
+    console.log("Webhook Verified");
+    return res.status(200).send(challenge);
   }
-);
+  console.log("webhook 2");
+
+  res.sendStatus(403);
+});
 
 userRoutes.post(
   "/webhook",
@@ -702,6 +699,8 @@ userRoutes.post(
 );
 
 async function sendOtpToUser(phone, otp, userId) {
+  console.log("sendOtpToUser");
+
   const url = `https://graph.facebook.com/v19.0/${process.env.META_PHONE_NUMBER_ID}/messages`;
 
   const headers = {
@@ -717,7 +716,7 @@ async function sendOtpToUser(phone, otp, userId) {
       body: `Your OTP is: ${otp}. This OTP is valid for 1 hour. Do not share this with anyone.`,
     },
   });
-
+  console.log(body)
   try {
     const response = await fetch(url, {
       method: "POST",
@@ -729,6 +728,7 @@ async function sendOtpToUser(phone, otp, userId) {
     console.log("Meta API response:", response.status, data);
 
     if (response.ok) {
+
       await saveOtp(phone, otp, userId);
     } else {
       console.error("Failed to send OTP:", data);

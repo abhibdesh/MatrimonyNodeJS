@@ -6,7 +6,6 @@ import jwt from "jsonwebtoken";
 import authMiddleware from "../middleware/auth.js";
 import updateLastActivity from "../middleware/updateLastActivity.js";
 import mongoose from "mongoose";
-import nodemailer from "nodemailer";
 import Admin from "../models/AdminBase.js";
 import MenuMaster from "../models/MenuMaster.js";
 import DistrictMaster from "../models/DistrictsBase.js";
@@ -757,8 +756,8 @@ commonRoutes.post(
       res.clearCookie("token", {
         httpOnly: true, // Prevent access from JavaScript (security)
         secure: true, // Use HTTPS (for production)
-        // sameSite: "None", // Prevent CSRF attacks
-        sameSite: "Lax", // For localhost
+        sameSite: "None", // Prevent CSRF attacks
+        // sameSite: "Lax", // For localhost
       });
       return res
         .status(200)
