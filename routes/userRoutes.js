@@ -759,7 +759,9 @@ userRoutes.post(
       const { otp } = req.body;
       const candidate = await Candidate.findById(req.user._id)
       const lastOTPForUser = await phoneOTP
-        .findOne({ phoneNumber: candidate.phoneNumber, isUsed: false })
+        .findOne({ phoneNumber: candidate.phoneNumber.toString().startsWith("91")
+          ? Number(phoneNumber.toString().slice(2))
+          : phoneNumber, isUsed: false })
         .sort({ createdAt: -1 });
       if (!lastOTPForUser) {
         return res.status(404).json({ message: "No OTP found." });

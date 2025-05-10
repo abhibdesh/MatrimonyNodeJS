@@ -3,6 +3,7 @@ import authMiddleware from "../middleware/auth.js";
 import updateLastActivity from "../middleware/updateLastActivity.js";
 import Candidate from "../models/User.js";
 import nodemailer from "nodemailer";
+import UserBase from "../models/UserBase.js";
 
 
 const emailRoutes = express.Router();
