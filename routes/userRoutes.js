@@ -372,7 +372,7 @@ userRoutes.post(
         });
       }
     } catch (error) {
-      console.log(error)
+      console.log(error);
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }
@@ -652,51 +652,42 @@ userRoutes.get("/webhook", async (req, res) => {
     console.log("Webhook Verified");
     return res.status(200).send(challenge);
   }
-  console.log("webhook 2");
-
   res.sendStatus(403);
 });
 
-userRoutes.post(
-  "/webhook",
-  authMiddleware,
-  updateLastActivity,
-  async (req, res) => {
-    console.log("Webhook POST");
-    const data = req.body;
+userRoutes.post("/webhook", async (req, res) => {
+  console.log("Webhook POST");
+  const data = req.body;
 
-    if (data.object === "whatsapp_business_account") {
-      for (const entry of data.entry || []) {
-        for (const change of entry.changes || []) {
-          const value = change.value || {};
-          const messages = value.messages || [];
+  if (data.object === "whatsapp_business_account") {
+    for (const entry of data.entry || []) {
+      for (const change of entry.changes || []) {
+        const value = change.value || {};
+        const messages = value.messages || [];
 
-          for (const message of messages) {
-            const userNumber = message.from;
-            const messageBody = message.text?.body?.trim().toLowerCase();
+        for (const message of messages) {
+          const userNumber = message.from;
+          const messageBody = message.text?.body?.trim().toLowerCase();
 
-            if (messageBody && messageBody.includes("verify")) {
-              if (canSendOtp(userNumber)) {
-                let otp = "";
-                const characters = "0123456789";
-                for (let i = 0; i < 6; i++) {
-                  const randomInd = Math.floor(
-                    Math.random() * characters.length
-                  );
-                  otp += characters.charAt(randomInd);
-                }
-                await sendOtpToUser(userNumber, otp, req.user._id);
-              } else {
-                console.log(`Rate limit hit for ${userNumber}`);
+          if (messageBody && messageBody.includes("verify")) {
+            if (canSendOtp(userNumber)) {
+              let otp = "";
+              const characters = "0123456789";
+              for (let i = 0; i < 6; i++) {
+                const randomInd = Math.floor(Math.random() * characters.length);
+                otp += characters.charAt(randomInd);
               }
+              await sendOtpToUser(userNumber, otp, req.user._id);
+            } else {
+              console.log(`Rate limit hit for ${userNumber}`);
             }
           }
         }
       }
     }
-    res.sendStatus(200);
   }
-);
+  res.sendStatus(200);
+});
 
 async function sendOtpToUser(phone, otp, userId) {
   console.log("sendOtpToUser");
@@ -716,7 +707,7 @@ async function sendOtpToUser(phone, otp, userId) {
       body: `Your OTP is: ${otp}. This OTP is valid for 1 hour. Do not share this with anyone.`,
     },
   });
-  console.log(body)
+  console.log(body);
   try {
     const response = await fetch(url, {
       method: "POST",
@@ -728,7 +719,6 @@ async function sendOtpToUser(phone, otp, userId) {
     console.log("Meta API response:", response.status, data);
 
     if (response.ok) {
-
       await saveOtp(phone, otp, userId);
     } else {
       console.error("Failed to send OTP:", data);
@@ -909,7 +899,6 @@ userRoutes.post(
     }
   }
 );
-
 
 userRoutes.post(
   "/set-profile-image",
