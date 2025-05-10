@@ -4,7 +4,7 @@ import updateLastActivity from "../middleware/updateLastActivity.js";
 import Candidate from "../models/User.js";
 import nodemailer from "nodemailer";
 import UserBase from "../models/UserBase.js";
-
+import bcrypt from "bcrypt";
 
 const emailRoutes = express.Router();
 

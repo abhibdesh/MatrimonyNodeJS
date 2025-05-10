@@ -759,9 +759,7 @@ userRoutes.post(
       const { otp } = req.body;
       const candidate = await Candidate.findById(req.user._id)
       const lastOTPForUser = await phoneOTP
-        .findOne({ phoneNumber: candidate.phoneNumber.toString().startsWith("91")
-          ? Number(phoneNumber.toString().slice(2))
-          : phoneNumber, isUsed: false })
+        .findOne({ phoneNumber: Number("91"+candidate.phoneNumber.toString()), isUsed: false })
         .sort({ createdAt: -1 });
       if (!lastOTPForUser) {
         return res.status(404).json({ message: "No OTP found." });
@@ -923,5 +921,57 @@ userRoutes.post(
     }
   }
 );
+
+userRoutes.post(
+  "/delete-image",
+  authMiddleware,
+  updateLastActivity,
+  async (req, res) => {
+    try {
+      const { imageId } = req.body;
+
+      if (!imageId) {
+        return res.status(400).json({
+          message: "failure",
+          data: "Image ID is required",
+        });
+      }
+
+      // Convert string ID to ObjectId
+      const fileObjectId = new mongoose.Types.ObjectId(imageId);
+
+      // Remove file reference from user profile
+      await Candidate.findByIdAndUpdate(req.user._id, {
+        $pull: { image: imageId }, // use correct array field name
+      });
+
+      // Delete file from GridFS
+      const db = mongoose.connection.db;
+
+      const fileDeleteResult = await db.collection("fs.files").deleteOne({
+        _id: fileObjectId,
+      });
+
+      const chunkDeleteResult = await db.collection("fs.chunks").deleteMany({
+        files_id: fileObjectId,
+      });
+
+      return res.status(200).json({
+        message: "success",
+        data: {
+          fileDeleted: fileDeleteResult.deletedCount,
+          chunksDeleted: chunkDeleteResult.deletedCount,
+        },
+      });
+    } catch (error) {
+      console.error("🧨 Delete Image Error:", error);
+      return res.status(500).json({
+        message: "failure",
+        data: error.message,
+      });
+    }
+  }
+);
+
 
 export default userRoutes;

@@ -248,12 +248,42 @@ commonRoutes.get(
   updateLastActivity,
   async (req, res) => {
     try {
-      const user = await UserBase.findById(req.user._id, {
+      const user = await Candidate.findById(req.user._id, {
         userPassword: 0,
         accessToken: 0,
       });
-      user.userRole = req.user.__t;
-      return res.status(200).json({ message: "success", data: user });
+      const files = user.image || [];
+
+      const media = await Promise.all(
+        files.map(async (fileId) => {
+          const chunks = await mongoose.connection.db
+            .collection("fs.chunks")
+            .find({ files_id: new mongoose.Types.ObjectId(fileId) })
+            .sort({ n: 1 })
+            .project({ data: 1 })
+            .toArray();
+      
+          const joined = chunks.map((c) => c.data.toString("base64")).join("");
+      
+          const fileDoc = await mongoose.connection.db
+            .collection("fs.files")
+            .findOne({ _id: new mongoose.Types.ObjectId(fileId) });
+      
+          return {
+            fileId,
+            filename: fileDoc.filename,
+            contentType: fileDoc.contentType,
+            length: fileDoc.length,
+            base64: joined,
+          };
+        })
+      );
+      
+      return res.status(200).json({
+        message: "success",
+        data: user,
+        media:media,
+      });
     } catch (error) {
       return res.status(500).json({ message: "failure", data: error.message });
     }
