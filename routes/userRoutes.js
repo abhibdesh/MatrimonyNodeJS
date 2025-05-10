@@ -677,7 +677,7 @@ userRoutes.post("/webhook", async (req, res) => {
                 const randomInd = Math.floor(Math.random() * characters.length);
                 otp += characters.charAt(randomInd);
               }
-              await sendOtpToUser(userNumber, otp, req.user._id);
+              await sendOtpToUser(userNumber, otp);
             } else {
               console.log(`Rate limit hit for ${userNumber}`);
             }
@@ -689,7 +689,7 @@ userRoutes.post("/webhook", async (req, res) => {
   res.sendStatus(200);
 });
 
-async function sendOtpToUser(phone, otp, userId) {
+async function sendOtpToUser(phone, otp) {
   console.log("sendOtpToUser");
 
   const url = `https://graph.facebook.com/v19.0/${process.env.META_PHONE_NUMBER_ID}/messages`;
@@ -719,7 +719,7 @@ async function sendOtpToUser(phone, otp, userId) {
     console.log("Meta API response:", response.status, data);
 
     if (response.ok) {
-      await saveOtp(phone, otp, userId);
+      await saveOtp(phone, otp);
     } else {
       console.error("Failed to send OTP:", data);
     }
@@ -728,9 +728,9 @@ async function sendOtpToUser(phone, otp, userId) {
   }
 }
 
-async function saveOtp(phone, otp, userId) {
+async function saveOtp(phone, otp) {
   await phoneOTP.create({
-    userId: userId,
+    phoneNumber: phone,
     OTP: otp,
   });
 
@@ -757,9 +757,9 @@ userRoutes.post(
   async (req, res) => {
     try {
       const { otp } = req.body;
-      const ObjectId = mongoose.Types.ObjectId;
+      const candidate = await Candidate.findById(req.user._id)
       const lastOTPForUser = await phoneOTP
-        .findOne({ userId: new ObjectId(req.user._id), isUsed: false })
+        .findOne({ phoneNumber: candidate.phoneNumber, isUsed: false })
         .sort({ createdAt: -1 });
       if (!lastOTPForUser) {
         return res.status(404).json({ message: "No OTP found." });

@@ -4,7 +4,7 @@ const phoneOTPSchema = new mongoose.Schema(
   {
     OTP: { type: String },
     isUsed: { type: Boolean, default: false },
-    userId: { type: String }
+    phoneNumber: { type: Number },
   },
   { timestamps: true, collection: "PhoneValidations" }
 );
