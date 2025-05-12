@@ -245,12 +245,14 @@ adminRoutes.post(
         });
       }
       if (req.user.__t === "admin") {
-        const refCodeEmailMapping = await Admin.findOne({userEmail:req.user.userEmail})
+        const refCodeEmailMapping = await Admin.findOne({
+          userEmail: req.user.userEmail,
+        });
         const referenceCode = refCodeEmailMapping.referenceCode;
         if (type === "Users") {
           if (paidUnpaid === "Paid") {
             const data = await Payment.find({
-              referenceCode:referenceCode,
+              referenceCode: referenceCode,
               isApproved: true,
               validTill: { $gte: new Date() },
             });
@@ -264,7 +266,7 @@ adminRoutes.post(
           }
           if (paidUnpaid === "Unpaid") {
             const data = await Payment.find({
-              referenceCode:referenceCode,
+              referenceCode: referenceCode,
               isApproved: true,
               validTill: { $gte: new Date() },
             });
@@ -278,7 +280,7 @@ adminRoutes.post(
           }
           if (paidUnpaid === "Pending") {
             const data = await Payment.find({
-              referenceCode:referenceCode,
+              referenceCode: referenceCode,
               isApproved: false,
               validTill: { $gte: new Date() },
             });
@@ -292,8 +294,8 @@ adminRoutes.post(
           }
           if (paidUnpaid === "") {
             const users = await UserBase.find({
-              referenceCode:referenceCode,
-              isActive:true
+              referenceCode: referenceCode,
+              isActive: true,
             });
             return res
               .status(200)
@@ -305,7 +307,7 @@ adminRoutes.post(
             const fromdate = new Date(from);
             const todate = new Date(to);
             const payments = await Payment.find({
-              referenceCode:referenceCode,
+              referenceCode: referenceCode,
               isApproved: true,
               approvalTimestamp: { $gte: fromdate, $lte: todate },
             });
@@ -336,43 +338,42 @@ adminRoutes.post(
               .json({ message: "success", data: enrichedPayments, type: type });
           }
           if (paidUnpaid === "Unpaid") {
-            const fromdate = new Date(from);
-            const todate = new Date(to);
-            const payments = await Payment.find({
-              referenceCode:referenceCode,
-              approvalTimestamp: { $gte: fromdate, $lte: todate },
+            // Step 1: Get all users with the given reference code
+            const UserData = await UserBase.find({
+              referenceCode: referenceCode,
+              __t: "candidate",
             });
 
-            const enrichedPayments = await Promise.all(
-              payments.map(async (payment) => {
-                let percentageShare = null;
+            // Step 2: Extract user IDs
+            const allUserIds = UserData.map((d) => d._id.toString());
+            console.log("allUserIds");
+            console.log(allUserIds);
+            // Step 3: Get userIds from payments
+            const paidPayments = await Payment.find({
+              userId: { $in: allUserIds },
+              referenceCode: referenceCode,
+            });
 
-                if (payment.referenceCode) {
-                  const admin = await UserBase.findOne({
-                    referenceCode: payment.referenceCode,
-                    __t: "admin",
-                  });
+            const paidUserIds = paidPayments.map((p) => p.userId.toString());
 
-                  if (admin) {
-                    percentageShare = admin.percentageShare || null;
-                  }
-                }
-
-                return {
-                  ...payment.toObject(),
-                  percentageShare,
-                };
-              })
+            // Step 4: Filter out paid users
+            const unpaidUsers = UserData.filter(
+              (user) => !paidUserIds.includes(user._id.toString())
             );
-            return res
-              .status(200)
-              .json({ message: "success", data: enrichedPayments, type: type });
+
+            // Step 5: Return only unpaid users
+            return res.status(200).json({
+              message: "success",
+              data: unpaidUsers,
+              type: type,
+            });
           }
+
           if (paidUnpaid === "Pending") {
             const fromdate = new Date(from);
             const todate = new Date(to);
             const payments = await Payment.find({
-              referenceCode:referenceCode,
+              referenceCode: referenceCode,
               isApproved: false,
               approvalTimestamp: { $gte: fromdate, $lte: todate },
             });
@@ -402,37 +403,9 @@ adminRoutes.post(
               .json({ message: "success", data: enrichedPayments, type: type });
           }
           if (paidUnpaid === "") {
-            const fromdate = new Date(from);
-            const todate = new Date(to);
-            const payments = await Payment.find({
-              referenceCode:referenceCode,
-              approvalTimestamp: { $gte: fromdate, $lte: todate },
-            });
-
-            const enrichedPayments = await Promise.all(
-              payments.map(async (payment) => {
-                let percentageShare = null;
-
-                if (payment.referenceCode) {
-                  const admin = await UserBase.findOne({
-                    referenceCode: payment.referenceCode,
-                    __t: "admin",
-                  });
-
-                  if (admin) {
-                    percentageShare = admin.percentageShare || null;
-                  }
-                }
-
-                return {
-                  ...payment.toObject(),
-                  percentageShare,
-                };
-              })
-            );
             return res
               .status(200)
-              .json({ message: "success", data: enrichedPayments, type: type });
+              .json({ message: "success", data: [], type: type });
           }
         }
       }
