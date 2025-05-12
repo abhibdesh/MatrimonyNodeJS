@@ -248,12 +248,11 @@ commonRoutes.get(
   updateLastActivity,
   async (req, res) => {
     try {
-      const user = await Candidate.findById(req.user._id, {
+      const user = await UserBase.findById(req.user._id, {
         userPassword: 0,
         accessToken: 0,
       });
       const files = user.image || [];
-
       const media = await Promise.all(
         files.map(async (fileId) => {
           const chunks = await mongoose.connection.db
@@ -285,6 +284,7 @@ commonRoutes.get(
         media:media,
       });
     } catch (error) {
+      console.log(error)
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }
