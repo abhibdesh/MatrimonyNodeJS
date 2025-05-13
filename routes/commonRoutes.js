@@ -203,12 +203,12 @@ commonRoutes.post(
       };
 
       if (req.user.__t === "candidate") {
-        query.lookingFor = { $ne: currentUser.lookingFor };
         applyFilters(query, filters, currentUser);
+        query.lookingFor = { $ne: currentUser.lookingFor };
       } else if (req.user.__t === "admin") {
         const admin = await Admin.findById(req.user._id);
-        query.referenceCode = admin.referenceCode;
         applyFilters(query, filters, currentUser);
+        query.referenceCode = admin.referenceCode;
       } else if (req.user.__t === "owner") {
         delete query.__t;
         delete query.lookingFor;
