@@ -462,6 +462,7 @@ commonRoutes.get(
         message: "success",
         data: finalData,
         media,
+        userRole:req.user.__t
       });
     } catch (error) {
       console.error(error);
