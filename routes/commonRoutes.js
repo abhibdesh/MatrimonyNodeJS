@@ -198,19 +198,7 @@ commonRoutes.post(
         isActive: true,
       };
 
-      if (req.user.__t === "candidate") {
-        applyFilters(query, filters, currentUser);
-        query.lookingFor = { $ne: currentUser.lookingFor };
-        query.__t ="candidate";
-      } else if (req.user.__t === "admin") {
-        const admin = await Admin.findById(req.user._id);
-        applyFilters(query, filters, currentUser);
-        query.referenceCode = admin.referenceCode;
-        query.__t ="candidate";
-      } else if (req.user.__t === "owner") {
-        delete query.__t;
-        delete query.lookingFor;
-      }
+    
 
       if(filters.expectedAgeGapMin !==null){
         const fromDate = new Date(`${filters.expectedAgeGapMin}-01-01T00:00:00.000Z`);
@@ -227,6 +215,22 @@ commonRoutes.post(
 
       
       console.log(query)
+
+      if (req.user.__t === "candidate") {
+        applyFilters(query, filters, currentUser);
+        query.lookingFor = { $ne: currentUser.lookingFor };
+        query.__t ="candidate";
+      } else if (req.user.__t === "admin") {
+        const admin = await Admin.findById(req.user._id);
+        applyFilters(query, filters, currentUser);
+        query.referenceCode = admin.referenceCode;
+        query.__t ="candidate";
+        query.isVerified =true;
+        delete query.height;
+      } else if (req.user.__t === "owner") {
+        delete query.__t;
+        delete query.lookingFor;
+      }
 
       const { users, totalCount } = await paginateUsers(
         query,
