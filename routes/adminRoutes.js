@@ -104,8 +104,6 @@ adminRoutes.post(
         });
       } else {
         const { _id, community } = req.body;
-        console.log(_id);
-        console.log(community);
         await Candidate.findByIdAndUpdate(_id, {
           $set: {
             isVerified: true,

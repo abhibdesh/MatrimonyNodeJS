@@ -222,6 +222,8 @@ commonRoutes.post(
       }
 
       query.height ={$gte:filters.selectedFromHeight,$lte:filters.selectedToHeight}
+      query.community ={$ne:""}
+      query.isVerified = true
 
       
       console.log(query)
