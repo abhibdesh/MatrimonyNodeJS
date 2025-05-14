@@ -203,7 +203,9 @@ userRoutes.post(
         profileWithImages,
         strictMatch,
       } = req.body;
-
+      
+      const fromDate = new Date(`${expectedAgeGapMin}-01-01T00:00:00.000Z`);
+      const toDate = new Date(`${expectedAgeGapMax}-12-31T23:59:59.999Z`);
       await Candidate.findByIdAndUpdate(req.user._id, {
         expectedLocatities: expectedLocatities,
         expectedEducations: expectedEducations,
@@ -211,8 +213,8 @@ userRoutes.post(
         expectedEatingHabits: expectedEatingHabits,
         expectedGana: expectedGana,
         expectedNakshatra: expectedNakshatra,
-        expectedAgeGapMin: expectedAgeGapMin,
-        expectedAgeGapMax: expectedAgeGapMax,
+        expectedAgeGapMin: fromDate,
+        expectedAgeGapMax: toDate,
         expectedBloodGroups: expectedBloodGroups,
         expectedNaadi: expectedNaadi,
         expectedRaas: expectedRaas,

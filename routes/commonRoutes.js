@@ -93,8 +93,8 @@ commonRoutes.get(
   }
 );
 async function paginateUsers(query, projection, pageNumber, rowsPerPage) {
-  const totalCount = await Candidate.countDocuments(query);
-  const users = await Candidate.find(query, projection)
+  const totalCount = await UserBase.countDocuments(query);
+  const users = await UserBase.find(query, projection)
     .skip((pageNumber - 1) * rowsPerPage)
     .limit(rowsPerPage);
   return { users, totalCount };
@@ -197,7 +197,6 @@ commonRoutes.post(
 
       let query = {
         _id: { $ne: currentUser._id },
-        __t: "candidate",
         isDeleted: false,
         isActive: true,
       };
@@ -205,14 +204,17 @@ commonRoutes.post(
       if (req.user.__t === "candidate") {
         applyFilters(query, filters, currentUser);
         query.lookingFor = { $ne: currentUser.lookingFor };
+        query.__t ="candidate";
       } else if (req.user.__t === "admin") {
         const admin = await Admin.findById(req.user._id);
         applyFilters(query, filters, currentUser);
         query.referenceCode = admin.referenceCode;
+        query.__t ="candidate";
       } else if (req.user.__t === "owner") {
         delete query.__t;
         delete query.lookingFor;
       }
+      console.log(query)
 
       const { users, totalCount } = await paginateUsers(
         query,
@@ -220,6 +222,7 @@ commonRoutes.post(
         pageNumber,
         rowsPerPage
       );
+      console.log(totalCount)
 
       const imageIds = users
         .map((u) => u.image?.[0])
