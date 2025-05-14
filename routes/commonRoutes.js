@@ -99,15 +99,15 @@ async function paginateUsers(query, projection, pageNumber, rowsPerPage) {
     .limit(rowsPerPage);
   return { users, totalCount };
 }
-function applyFilters(query, filters, currentUser) {
+function applyFilters(query, filters = {}, currentUser = {}) {
   const mergeOrFallback = (key, fallbackKey) => {
-    return filters[key]?.length > 0
+    return filters?.[key]?.length > 0
       ? filters[key]
-      : currentUser[fallbackKey] || [];
+      : currentUser?.[fallbackKey] || [];
   };
 
   const mapFilters = [
-    ["incomeGroup", "selectedEducations", "expectedEducations"],
+    ["selectedEducations", "selectedEducations", "expectedEducations"],
     ["addressInShort", "selectedLocatities", "expectedLocatities"],
     ["incomeGroup", "selectedIncome", "expectedIncome"],
     ["eatingHabits", "expectedEatingHabits", "expectedEatingHabits"],
@@ -117,21 +117,18 @@ function applyFilters(query, filters, currentUser) {
     ["naadi", "expectedNaadi", "expectedNaadi"],
     ["raas", "expectedRaas", "expectedRaas"],
     ["familyType", "expectedFamilyType", "expectedFamilyType"],
-    [
-      "selectedSiblingsCousinsUpto",
-      "selectedSiblingsCousinsUpto",
-      "expectedSiblingsCousinsUpto",
-    ],
+    ["selectedSiblingsCousinsUpto", "selectedSiblingsCousinsUpto", "expectedSiblingsCousinsUpto"],
     ["profileWithImages", "profileWithImages", "profileWithImages"],
   ];
 
   for (const [field, userFilterKey, fallbackKey] of mapFilters) {
     const vals = mergeOrFallback(userFilterKey, fallbackKey);
-    if (vals.length > 0) {
+    if (vals?.length > 0) {
       query[field] = { $in: vals };
     }
   }
 }
+
 
 function mapUsers(users, files, fileChunksMap) {
   return users.map((u) => {
@@ -214,6 +211,19 @@ commonRoutes.post(
         delete query.__t;
         delete query.lookingFor;
       }
+
+      if(filters.expectedAgeGapMin !==null){
+        const fromDate = new Date(`${filters.expectedAgeGapMin}-01-01T00:00:00.000Z`);
+        query.birthDate ={$gte:fromDate}
+      }
+      if(filters.expectedAgeGapMax !==null){
+        const toDate = new Date(`${filters.expectedAgeGapMax}-12-31T23:59:59.999Z`);
+        query.birthDate ={$lte:toDate}
+      }
+
+      query.height ={$gte:filters.selectedFromHeight,$lte:filters.selectedToHeight}
+
+      
       console.log(query)
 
       const { users, totalCount } = await paginateUsers(
@@ -222,7 +232,6 @@ commonRoutes.post(
         pageNumber,
         rowsPerPage
       );
-      console.log(totalCount)
 
       const imageIds = users
         .map((u) => u.image?.[0])

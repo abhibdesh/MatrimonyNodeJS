@@ -15,7 +15,7 @@ const CandidateSchema = new mongoose.Schema(
     profileImage: {},
     images: { type: Array, default: [] },
     birthDate: { type: Date, default: null },
-    birthTime: { type: String, default: "" },
+    birthTime: { type: String, default: null },
     age: { type: String, default: "" },
     birthPlace: { type: String, default: "" },
     height: { type: String, default: "" },
