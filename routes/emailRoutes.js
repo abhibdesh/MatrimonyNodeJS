@@ -133,7 +133,7 @@ emailRoutes.post("/forgot-password", async (req, res) => {
     } else {
       let newPassword = "";
       const characters =
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
       for (let i = 0; i < 10; i++) {
         const randomInd = Math.floor(Math.random() * characters.length);
         newPassword += characters.charAt(randomInd);
@@ -322,6 +322,7 @@ emailRoutes.post("/enquire-Services", async (req, res) => {
       data: "We have received your enquiry and we will get back to you at the earliest.",
     });
   } catch (error) {
+    console.log(error)
     return res.status(500).json({ message: "failure", data: error.message });
   }
 });
@@ -394,6 +395,7 @@ emailRoutes.post("/feedback", async (req, res) => {
       data: "Thank you for the feedback. We will definitely consider the same.",
     });
   } catch (error) {
+    console.log(error)
     return res.status(500).json({ message: "failure", data: error.message });
   }
 });
@@ -472,6 +474,7 @@ emailRoutes.post("/contact", async (req, res) => {
       data: "We have received your contact request and we will get back to you as early as possible.",
     });
   } catch (error) {
+    console.log(error)
     return res.status(500).json({ message: "failure", data: error.message });
   }
 });
@@ -541,6 +544,7 @@ emailRoutes.post("/join-us-as-admins", async (req, res) => {
       data: "We have received your admin request and it is under review. We will get back to you as early as possible.",
     });
   } catch (error) {
+    console.log(error)
     return res.status(500).json({ message: "failure", data: error.message });
   }
 });
@@ -623,6 +627,7 @@ emailRoutes.post("/partner-request", async (req, res) => {
       data: "We have received your partner request and it is under review. We will get back to you as early as possible.",
     });
   } catch (error) {
+    console.log(error)
     return res.status(500).json({ message: "failure", data: error.message });
   }
 });

@@ -136,6 +136,7 @@ userRoutes.post(
 
       // res.status(200).json({message:"sucess",data:"Profile updated sucessfully"})
     } catch (error) {
+      console.log(error)
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }
@@ -174,6 +175,7 @@ userRoutes.get(
         });
       }
     } catch (error) {
+      console.log(error)
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }
@@ -203,7 +205,7 @@ userRoutes.post(
         profileWithImages,
         strictMatch,
       } = req.body;
-      
+
       const fromDate = new Date(`${expectedAgeGapMin}-01-01T00:00:00.000Z`);
       const toDate = new Date(`${expectedAgeGapMax}-12-31T23:59:59.999Z`);
       await Candidate.findByIdAndUpdate(req.user._id, {
@@ -229,6 +231,7 @@ userRoutes.post(
         data: "Your preferences are updated successfully",
       });
     } catch (error) {
+      console.log(error)
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }
@@ -883,8 +886,8 @@ userRoutes.post(
       fileStream
         .pipe(uploadStream)
         .on("error", (error) => {
-          console.error("Upload Error:", error);
-          res.status(500).json({ message: "Upload Error", error });
+          console.error(error);
+          res.status(500).json({ message: "failure", data:error.message });
         })
         .on("finish", async () => {
           user.images.push(uploadStream.id);
@@ -896,7 +899,7 @@ userRoutes.post(
           });
         });
     } catch (error) {
-      console.error("Upload Handler Error:", error);
+      console.error(error);
       res.status(500).json({ message: "failure", data: error.message });
     }
   }
@@ -966,7 +969,7 @@ userRoutes.post(
         },
       });
     } catch (error) {
-      console.error("🧨 Delete Image Error:", error);
+      console.error(error);
       return res.status(500).json({
         message: "failure",
         data: error.message,

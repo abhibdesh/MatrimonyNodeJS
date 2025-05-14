@@ -1,4 +1,3 @@
-import jwt from "jsonwebtoken";
 import authMiddleware from "../middleware/auth.js";
 import updateLastActivity from "../middleware/updateLastActivity.js";
 import UserBase from "../models/UserBase.js";
@@ -17,7 +16,6 @@ adminRoutes.post(
   updateLastActivity,
   async (req, res) => {
     const { userId } = req.body;
-    const currentUser = req.user;
     try {
       if (req.user.__t === "candidate") {
         return res.status(401).json({
@@ -41,6 +39,7 @@ adminRoutes.post(
         }
       }
     } catch (error) {
+      console.log(error)
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }
@@ -86,6 +85,7 @@ adminRoutes.get(
         return res.status(200).json({ message: "success", data: users });
       }
     } catch (error) {
+      console.log(error)
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }
@@ -104,6 +104,8 @@ adminRoutes.post(
         });
       } else {
         const { _id, community } = req.body;
+        console.log(_id)
+        console.log(community)
         await Candidate.findByIdAndUpdate(_id, {
           $set: {
             isVerified: true,
@@ -220,6 +222,7 @@ adminRoutes.get(
         });
       }
     } catch (error) {
+      console.log(error)
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }

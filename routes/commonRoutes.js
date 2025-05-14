@@ -20,7 +20,8 @@ commonRoutes.get("/health-check", async (req, res) => {
   try {
     return res.status(200).json({ message: "success", data: "Healthy" });
   } catch (error) {
-    return res.status(500).json({ message: "failure", data: error });
+    console.log(error)
+    return res.status(500).json({ message: "failure", data: error.message });
   }
 });
 
@@ -68,7 +69,7 @@ commonRoutes.post("/user-login", async (req, res) => {
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ message: error.message });
+    return res.status(500).json({message: "failure", data: error.message });
   }
 });
 
@@ -88,7 +89,7 @@ commonRoutes.get(
       });
     } catch (error) {
       console.error(error);
-      return res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: "failure",data: error.message });
     }
   }
 );
@@ -198,8 +199,6 @@ commonRoutes.post(
         isActive: true,
       };
 
-    
-
       if(filters.expectedAgeGapMin !==null){
         const fromDate = new Date(`${filters.expectedAgeGapMin}-01-01T00:00:00.000Z`);
         query.birthDate ={$gte:fromDate}
@@ -213,7 +212,7 @@ commonRoutes.post(
       query.community ={$ne:""}
       query.isVerified = true
 
-      
+      console.log(filters)
       console.log(query)
 
       if (req.user.__t === "candidate") {
@@ -253,9 +252,9 @@ commonRoutes.post(
         currentPage: pageNumber,
         rowsPerPage,
       });
-    } catch (err) {
-      console.error("Error in /get-all-users", err);
-      res.status(500).json({ message: "Internal Server Error" });
+    } catch (error) {
+      console.log(error)
+      res.status(500).json({ message: "failure", data:error.message });
     }
   }
 );
@@ -779,6 +778,7 @@ commonRoutes.post(
         .status(200)
         .json({ message: "success", data: "Password changed successfully" });
     } catch (error) {
+      console.log(error)
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }
@@ -792,6 +792,7 @@ commonRoutes.get("/get-unique-reference-codes", async (req, res) => {
     );
     return res.status(200).json({ message: "success", data: refCodes });
   } catch (error) {
+    console.log(error)
     return res.status(500).json({ message: "failure", data: error.message });
   }
 });
@@ -812,6 +813,7 @@ commonRoutes.post(
         .status(200)
         .json({ message: "success", data: "Logged out successfully." });
     } catch (error) {
+      console.log(error)
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }
@@ -822,6 +824,7 @@ commonRoutes.get("/get-districts", async (req, res) => {
     const disticts = await DistrictMaster.find({ isActive: true }, { _id: 0 });
     return res.status(200).json({ message: "success", data: disticts });
   } catch (error) {
+    console.log(error)
     return res.status(500).json({ message: "failure", data: error.message });
   }
 });
