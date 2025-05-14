@@ -29,12 +29,22 @@ ownerRoutes.post(
       const user = await UserBase.findOne({ userEmail: userEmail });
       console.log(user);
       if (!user) {
-        let random = Math.floor(Math.random() * (9999 - 999 + 1)) + 999;
-        let name = firstName + lastName;
+        let name = (firstName + lastName).padEnd(3, "X");
+        const prefix = name.slice(0, 3).toUpperCase();
+        const random = Math.floor(Math.random() * 9001) + 999;
+        const randomStr = random.toString().padStart(4, "0");
+        const tempAdminCode = prefix + randomStr;
+        const finalAdminCode = tempAdminCode
+          .replace(/1/g, "9")
+          .replace(/I/g, "Z")
+          .replace(/0/g, "X")
+          .replace(/O/g, "Q")
+          .replace(/l/g, "X");
+        console.log(finalAdminCode);        
         await Admin.create({
           firstName: firstName,
           lastName: lastName,
-          referenceCode: name.slice(0, 3).toUpperCase() + random,
+          referenceCode: finalAdminCode,
           communityList: communityList,
           phoneNumber: phoneNumber,
           userEmail: userEmail,
