@@ -208,9 +208,11 @@ commonRoutes.post(
         query.birthDate ={$lte:toDate}
       }
 
-      query.height ={$gte:filters.selectedFromHeight,$lte:filters.selectedToHeight}
-      query.community ={$ne:""}
-      query.isVerified = true
+      query.height ={$gte:filters.selectedFromHeight,$lte:filters.selectedToHeight};
+      query.community ={$ne:""};
+      query.isVerified = true;
+      query.isEmailVerified = true;
+      query.isPhoneVerified = true;
 
       console.log(filters)
       console.log(query)
