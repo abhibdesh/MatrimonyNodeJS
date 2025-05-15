@@ -25,6 +25,40 @@ commonRoutes.get("/health-check", async (req, res) => {
   }
 });
 
+const isFilled = (value) => {
+  return !(
+    value === null ||
+    value === undefined ||
+    (typeof value === 'string' && value.trim() === '') ||
+    (Array.isArray(value) && value.length === 0) ||
+    (typeof value === 'number' && isNaN(value))
+  );
+};
+
+const calculateProfileCompletion = async (id) => {
+  const userObj = await UserBase.findById(id).lean();
+  const keysToCheck = Object.keys(userObj).filter(
+    (key) => ['addressInShort','currentAddress',
+      'community','image','images','birthDate','birthPlace','height','bloodGroup','disabilityYN',
+      'disablityDescription','degreeDiploma','degreeDiploma','degreeName',
+      'fieldJob','companyName','jobBusiness','incomeGroup','eatingHabits',
+      'raas','gotra','dosha','gana','devak','nakshatra','charan','naadi','familyType',
+      'siblingCount','educationOfSiblings','property','educationOfMother','educationOfFather',
+      'motherFamilyDetails','fatherFamilyDetails'].includes(key)
+  );
+
+  const total = keysToCheck.length;
+  const filled = keysToCheck.reduce((acc, key) => {
+    return acc + (isFilled(userObj[key]) ? 1 : 0);
+  }, 0);
+
+  const percentage = Math.round((filled / total) * 100);
+
+  console.log(`Filled: ${filled}/${total} fields (${percentage}%)`);
+  return percentage;
+};
+
+
 commonRoutes.post("/user-login", async (req, res) => {
   try {
     const { userEmail, userPassword } = req.body;
@@ -54,6 +88,7 @@ commonRoutes.post("/user-login", async (req, res) => {
     });
 
     await UserBase.findByIdAndUpdate(user._id, { accessToken: token });
+    const percent = await calculateProfileCompletion(user._id);
 
     res.cookie("token", token, {
       httpOnly: true, // Prevent access from JavaScript (security)
@@ -66,6 +101,7 @@ commonRoutes.post("/user-login", async (req, res) => {
     return res.status(200).json({
       message: "success",
       data: "User logged in successfully",
+      percent: percent
     });
   } catch (error) {
     console.error(error);
@@ -170,7 +206,7 @@ function mapUsers(users, files, fileChunksMap) {
   });
 }
 
-// TODO: Need to work on filters and add preferences
+// TODO: Need to work on add preferences
 commonRoutes.post(
   "/get-all-users",
   authMiddleware,
@@ -215,8 +251,6 @@ commonRoutes.post(
       query.isEmailVerified = true;
       query.isPhoneVerified = true;
 
-      console.log(filters)
-      console.log(query)
 
       if (req.user.__t === "candidate") {
         applyFilters(query, filters, currentUser);
@@ -302,6 +336,7 @@ commonRoutes.get(
         message: "success",
         data: user,
         media:media,
+        percent : await calculateProfileCompletion(req.user._id)
       });
     } catch (error) {
       console.log(error)
