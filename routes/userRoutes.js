@@ -15,6 +15,7 @@ import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 import emailOTP from "../models/EmailOTPBase.js";
 import phoneOTP from "../models/PhoneOTPBase.js";
+import UserBase from "../models/UserBase.js";
 dotenv.config();
 
 const userRoutes = express.Router();
@@ -136,7 +137,7 @@ userRoutes.post(
 
       // res.status(200).json({message:"sucess",data:"Profile updated sucessfully"})
     } catch (error) {
-      console.log(error)
+      console.log(error);
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }
@@ -175,7 +176,7 @@ userRoutes.get(
         });
       }
     } catch (error) {
-      console.log(error)
+      console.log(error);
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }
@@ -231,7 +232,7 @@ userRoutes.post(
         data: "Your preferences are updated successfully",
       });
     } catch (error) {
-      console.log(error)
+      console.log(error);
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }
@@ -762,9 +763,12 @@ userRoutes.post(
   async (req, res) => {
     try {
       const { otp } = req.body;
-      const candidate = await Candidate.findById(req.user._id)
+      const candidate = await Candidate.findById(req.user._id);
       const lastOTPForUser = await phoneOTP
-        .findOne({ phoneNumber: Number("91"+candidate.phoneNumber.toString()), isUsed: false })
+        .findOne({
+          phoneNumber: Number("91" + candidate.phoneNumber.toString()),
+          isUsed: false,
+        })
         .sort({ createdAt: -1 });
       if (!lastOTPForUser) {
         return res.status(404).json({ message: "No OTP found." });
@@ -887,7 +891,7 @@ userRoutes.post(
         .pipe(uploadStream)
         .on("error", (error) => {
           console.error(error);
-          res.status(500).json({ message: "failure", data:error.message });
+          res.status(500).json({ message: "failure", data: error.message });
         })
         .on("finish", async () => {
           user.images.push(uploadStream.id);
@@ -978,5 +982,50 @@ userRoutes.post(
   }
 );
 
+userRoutes.get(
+  "/get-profile-image",
+  authMiddleware,
+  updateLastActivity,
+  async (req, res) => {
+    try {
+      const user = await UserBase.findById(req.user._id);
+      const files = user.image || [];
+      const media = await Promise.all(
+        files.map(async (fileId) => {
+          const chunks = await mongoose.connection.db
+            .collection("fs.chunks")
+            .find({ files_id: new mongoose.Types.ObjectId(fileId) })
+            .sort({ n: 1 })
+            .project({ data: 1 })
+            .toArray();
+
+          const joined = chunks.map((c) => c.data.toString("base64")).join("");
+
+          const fileDoc = await mongoose.connection.db
+            .collection("fs.files")
+            .findOne({ _id: new mongoose.Types.ObjectId(fileId) });
+
+          return {
+            fileId,
+            filename: fileDoc.filename,
+            contentType: fileDoc.contentType,
+            length: fileDoc.length,
+            base64: joined,
+          };
+        })
+      );
+      return res.status(200).json({
+        message: "success",
+        media: media,
+      });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "failure",
+        data: error.message,
+      });
+    }
+  }
+);
 
 export default userRoutes;

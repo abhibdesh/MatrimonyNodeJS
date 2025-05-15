@@ -197,6 +197,7 @@ commonRoutes.post(
         _id: { $ne: currentUser._id },
         isDeleted: false,
         isActive: true,
+        community:currentUser.community
       };
 
       if(filters.expectedAgeGapMin !==null){
