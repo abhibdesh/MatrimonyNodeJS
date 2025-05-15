@@ -116,7 +116,7 @@ commonRoutes.get(
   async (req, res) => {
     try {
       const menu = await MenuMaster.find(
-        { __t: { $in: [req.user.__t] } },
+        { isActive:true,__t: { $in: [req.user.__t] } },
         { _id: 0, displayName: 1, path: 1, priority: 1 }
       ).sort({ priority: 1 });
       res.status(200).json({
