@@ -136,11 +136,17 @@ async function paginateUsers(query, projection, pageNumber, rowsPerPage) {
     .limit(rowsPerPage);
   return { users, totalCount };
 }
+
 function applyFilters(query, filters = {}, currentUser = {}) {
-  const mergeOrFallback = (key, fallbackKey) => {
-    return filters?.[key]?.length > 0
-      ? filters[key]
-      : currentUser?.[fallbackKey] || [];
+  const toArray = (val) => Array.isArray(val) ? val : [];
+
+  const mergeOrAddExpected = (filterKey, expectedKey) => {
+    const filterVals = toArray(filters?.[filterKey]);
+    const expectedVals = toArray(currentUser?.[expectedKey]);
+
+    // Merge and deduplicate
+    const mergedVals = [...new Set([...filterVals, ...expectedVals])];
+    return mergedVals;
   };
 
   const mapFilters = [
@@ -158,14 +164,13 @@ function applyFilters(query, filters = {}, currentUser = {}) {
     ["profileWithImages", "profileWithImages", "profileWithImages"],
   ];
 
-  for (const [field, userFilterKey, fallbackKey] of mapFilters) {
-    const vals = mergeOrFallback(userFilterKey, fallbackKey);
-    if (vals?.length > 0) {
+  for (const [field, filterKey, expectedKey] of mapFilters) {
+    const vals = mergeOrAddExpected(filterKey, expectedKey);
+    if (vals.length > 0) {
       query[field] = { $in: vals };
     }
   }
 }
-
 
 function mapUsers(users, files, fileChunksMap) {
   return users.map((u) => {
@@ -267,7 +272,10 @@ commonRoutes.post(
         delete query.__t;
         delete query.lookingFor;
       }
-
+      console.log("filters")
+      console.log(filters)
+      console.log("query")
+      console.log(query)
       const { users, totalCount } = await paginateUsers(
         query,
         projection,

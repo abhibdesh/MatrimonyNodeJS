@@ -207,36 +207,64 @@ userRoutes.post(
         strictMatch,
       } = req.body;
 
-      const fromDate = new Date(`${expectedAgeGapMin}-01-01T00:00:00.000Z`);
-      const toDate = new Date(`${expectedAgeGapMax}-12-31T23:59:59.999Z`);
-      await Candidate.findByIdAndUpdate(req.user._id, {
-        expectedLocatities: expectedLocatities,
-        expectedEducations: expectedEducations,
-        expectedIncome: expectedIncome,
-        expectedEatingHabits: expectedEatingHabits,
-        expectedGana: expectedGana,
-        expectedNakshatra: expectedNakshatra,
-        expectedAgeGapMin: fromDate,
-        expectedAgeGapMax: toDate,
-        expectedBloodGroups: expectedBloodGroups,
-        expectedNaadi: expectedNaadi,
-        expectedRaas: expectedRaas,
-        expectedHeight: expectedHeight,
-        expectedFamilyType: expectedFamilyType,
-        expectedSiblingsCousinsUpto: expectedSiblingsCousinsUpto,
-        profileWithImages: profileWithImages,
-        strictMatch: strictMatch,
-      });
+      let fromDate = null;
+      let toDate = null;
+
+      // Convert year to full date range if numeric
+      if (!isNaN(Number(expectedAgeGapMin))) {
+        fromDate = new Date(`${expectedAgeGapMin}-01-01T00:00:00.000Z`);
+      }
+
+      if (!isNaN(Number(expectedAgeGapMax))) {
+        toDate = new Date(`${expectedAgeGapMax}-12-31T23:59:59.999Z`);
+      }
+
+      // Dynamically build update object
+      const updateObj = {
+        expectedLocatities,
+        expectedEducations,
+        expectedIncome,
+        expectedEatingHabits,
+        expectedGana,
+        expectedNakshatra,
+        expectedBloodGroups,
+        expectedNaadi,
+        expectedRaas,
+        expectedHeight,
+        expectedFamilyType,
+        expectedSiblingsCousinsUpto,
+        profileWithImages,
+        strictMatch,
+      };
+
+      // Only add valid dates to update object
+      if (!isNaN(fromDate?.getTime())) {
+        updateObj.expectedAgeGapMin = fromDate;
+      }
+
+      if (!isNaN(toDate?.getTime())) {
+        updateObj.expectedAgeGapMax = toDate;
+      }
+
+      // Optional: log what's being updated
+      // console.log("Updating preferences:", updateObj);
+
+      await Candidate.findByIdAndUpdate(req.user._id, updateObj);
+
       return res.status(200).json({
         message: "success",
         data: "Your preferences are updated successfully",
       });
     } catch (error) {
-      console.log(error);
-      return res.status(500).json({ message: "failure", data: error.message });
+      console.error("Update Preferences Error:", error);
+      return res.status(500).json({
+        message: "failure",
+        data: error.message,
+      });
     }
   }
 );
+
 
 async function paginateUsers(query, projection, pageNumber, rowsPerPage) {
   const totalCount = await Candidate.countDocuments(query);
