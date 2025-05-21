@@ -5,6 +5,7 @@ import Candidate from "../models/User.js";
 import nodemailer from "nodemailer";
 import UserBase from "../models/UserBase.js";
 import bcrypt from "bcrypt";
+import emailOTP from "../models/EmailOTPBase.js";
 import { body, validationResult } from "express-validator";
 
 const emailRoutes = express.Router();
@@ -88,6 +89,59 @@ const generateEmail = (header, body) => {
         </body>
         </html>`;
 };
+
+
+emailRoutes.post(
+  "/verifiy-email-send-otp",
+  authMiddleware,
+  updateLastActivity,
+  async (req, res) => {
+    try {
+      const { userName } = req.body;
+      let otp = "";
+      const characters = "1234567890";
+      for (let i = 0; i < 6; i++) {
+        const randomInd = Math.floor(Math.random() * characters.length);
+        otp += characters.charAt(randomInd);
+      }
+      await emailOTP.create({
+        OTP: otp,
+        userId: req.user._id,
+      });
+      const transporter = createTransporter()
+
+      let receiverMail;
+      if (environment === "LOCAL" || environment === "UAT") {
+        receiverMail = testEmail;
+      } else {
+        receiverMail = req.user.userEmail;
+      }
+
+      const mailOptions = {
+        from: `"Suta Bandhan Support" <${process.env.GMAIL_USER}>`,
+        to: receiverMail,
+        bcc: process.env.ADMIN_EMAILS.split(";"),
+        subject: "Email Verification",
+        html: generateEmail("Verification OTP",`<p>Hi ${userName},</p>
+            <p>Thank you for signing up! Please use the following One-Time Password (OTP) to verify your email address:</p>
+            <div class="otp-box">${otp}</div>
+            <p>This OTP is valid for the next 30 minutes. Please do not share it with anyone.</p>
+            <p>If you did not request this, please ignore this email.</p>`)
+          };
+      transporter
+        .sendMail(mailOptions)
+        .then((info) => console.log("Email sent:", info.response))
+        .catch((error) => console.error("Error sending email:", error));
+        return res.status(200).json({
+          message: "success",
+          data: "Please check your registered email for OTP.",
+        });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({ message: "failure", data: error.message });
+    }
+  }
+);
 
 emailRoutes.post(
   "/request-info",
@@ -284,7 +338,7 @@ emailRoutes.post("/contact", async (req, res) => {
       to: process.env.ADMIN_EMAILS.split(";"),
       subject: "Contact Request",
       html: generateEmail(
-        "Contact Request",
+        `Contact Request - ${concern}`,
         `<p> ${firstName}  ${lastName} sent a conatct request:</p>
                   <p>Contact Number: ${contactNumber}</p> 
                   <p>Email: ${emailId}</p> 

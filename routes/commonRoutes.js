@@ -58,77 +58,6 @@ const calculateProfileCompletion = async (id) => {
   return percentage;
 };
 
-
-commonRoutes.post("/user-login", async (req, res) => {
-  try {
-    const { userEmail, userPassword } = req.body;
-    const user = await UserBase.findOne({ userEmail });
-
-    if (!user) {
-      return res
-        .status(404)
-        .json({ message: "failure", data: "User Not Found" });
-    }
-
-    const isMatch = await bcrypt.compare(userPassword, user.userPassword);
-    if (!isMatch) {
-      return res
-        .status(200)
-        .json({ message: "failure", data: "Invalid credentials" });
-    }
-
-    const payload = {
-      _id: user._id,
-      userEmail: user.userEmail,
-      __t: user.__t,
-    };
-
-    const token = jwt.sign(payload, process.env.JWT_SECRET, {
-      expiresIn: "1d",
-    });
-
-    await UserBase.findByIdAndUpdate(user._id, { accessToken: token });
-    const percent = await calculateProfileCompletion(user._id);
-
-    res.cookie("token", token, {
-      httpOnly: true, // Prevent access from JavaScript (security)
-      secure: true, // Use HTTPS (for production)
-      sameSite: "None", // Prevent CSRF attacks
-      // sameSite: "Lax", // For localhost
-      maxAge: 24 * 60 * 60 * 1000,
-    });
-
-    return res.status(200).json({
-      message: "success",
-      data: "User logged in successfully",
-      percent: percent
-    });
-  } catch (error) {
-    console.error(error);
-    return res.status(500).json({message: "failure", data: error.message });
-  }
-});
-
-commonRoutes.get(
-  "/get-menu-master",
-  authMiddleware,
-  updateLastActivity,
-  async (req, res) => {
-    try {
-      const menu = await MenuMaster.find(
-        { isActive:true,__t: { $in: [req.user.__t] } },
-        { _id: 0, displayName: 1, path: 1, priority: 1 }
-      ).sort({ priority: 1 });
-      res.status(200).json({
-        message: "success",
-        data: menu,
-      });
-    } catch (error) {
-      console.error(error);
-      return res.status(500).json({ message: "failure",data: error.message });
-    }
-  }
-);
 async function paginateUsers(query, projection, pageNumber, rowsPerPage) {
   const totalCount = await UserBase.countDocuments(query);
   const users = await UserBase.find(query, projection)
@@ -211,7 +140,102 @@ function mapUsers(users, files, fileChunksMap) {
   });
 }
 
-// TODO: Need to work on add preferences
+async function fetchUserImages(imageIds) {
+  const filesCursor = mongoose.connection.db
+    .collection("fs.files")
+    .find({ _id: { $in: imageIds } });
+
+  const files = await filesCursor.toArray();
+
+  const chunksCursor = mongoose.connection.db
+    .collection("fs.chunks")
+    .find({ files_id: { $in: imageIds } })
+    .sort({ n: 1 });
+
+  const chunks = await chunksCursor.toArray();
+
+  const fileChunksMap = files.reduce((acc, file) => {
+    const fileChunk = chunks.filter((c) => c.files_id.equals(file._id));
+    acc[file._id.toString()] = fileChunk.map((c) =>
+      Buffer.from(c.data.buffer).toString("base64")
+    );
+    return acc;
+  }, {});
+
+  return { files, fileChunksMap };
+}
+
+commonRoutes.post("/user-login", async (req, res) => {
+  try {
+    const { userEmail, userPassword } = req.body;
+    const user = await UserBase.findOne({ userEmail });
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ message: "failure", data: "User Not Found" });
+    }
+
+    const isMatch = await bcrypt.compare(userPassword, user.userPassword);
+    if (!isMatch) {
+      return res
+        .status(200)
+        .json({ message: "failure", data: "Invalid credentials" });
+    }
+
+    const payload = {
+      _id: user._id,
+      userEmail: user.userEmail,
+      __t: user.__t,
+    };
+
+    const token = jwt.sign(payload, process.env.JWT_SECRET, {
+      expiresIn: "1d",
+    });
+
+    await UserBase.findByIdAndUpdate(user._id, { accessToken: token });
+    const percent = await calculateProfileCompletion(user._id);
+
+    res.cookie("token", token, {
+      httpOnly: true, // Prevent access from JavaScript (security)
+      secure: true, // Use HTTPS (for production)
+      sameSite: "None", // Prevent CSRF attacks
+      // sameSite: "Lax", // For localhost
+      maxAge: 24 * 60 * 60 * 1000,
+    });
+
+    return res.status(200).json({
+      message: "success",
+      data: "User logged in successfully",
+      percent: percent
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({message: "failure", data: error.message });
+  }
+});
+
+commonRoutes.get(
+  "/get-menu-master",
+  authMiddleware,
+  updateLastActivity,
+  async (req, res) => {
+    try {
+      const menu = await MenuMaster.find(
+        { isActive:true,__t: { $in: [req.user.__t] } },
+        { _id: 0, displayName: 1, path: 1, priority: 1 }
+      ).sort({ priority: 1 });
+      res.status(200).json({
+        message: "success",
+        data: menu,
+      });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({ message: "failure",data: error.message });
+    }
+  }
+);
+
 commonRoutes.post(
   "/get-all-users",
   authMiddleware,
@@ -516,32 +540,6 @@ commonRoutes.get(
   }
 );
 
-async function fetchUserImages(imageIds) {
-  const filesCursor = mongoose.connection.db
-    .collection("fs.files")
-    .find({ _id: { $in: imageIds } });
-
-  const files = await filesCursor.toArray();
-
-  const chunksCursor = mongoose.connection.db
-    .collection("fs.chunks")
-    .find({ files_id: { $in: imageIds } })
-    .sort({ n: 1 });
-
-  const chunks = await chunksCursor.toArray();
-
-  const fileChunksMap = files.reduce((acc, file) => {
-    const fileChunk = chunks.filter((c) => c.files_id.equals(file._id));
-    acc[file._id.toString()] = fileChunk.map((c) =>
-      Buffer.from(c.data.buffer).toString("base64")
-    );
-    return acc;
-  }, {});
-
-  return { files, fileChunksMap };
-}
-
-// routes/commonRoutes.js
 
 commonRoutes.get(
   "/saved-profiles/get-profile-by-id/:userId",
@@ -805,8 +803,6 @@ commonRoutes.post("/add-new-candidate", async (req, res) => {
     return res.status(500).json({ message: "failure", data: error.message });
   }
 });
-
-
 
 commonRoutes.post(
   "/change-password",

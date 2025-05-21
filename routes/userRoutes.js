@@ -1,7 +1,5 @@
 import express from "express";
 import User from "../models/UserBase.js";
-import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
 import authMiddleware from "../middleware/auth.js";
 import mongoose from "mongoose";
 import multer from "multer";
@@ -11,7 +9,6 @@ import Candidate from "../models/User.js";
 import Payment from "../models/Payment.js";
 import moment from "moment-timezone";
 import PaymentBase from "../models/Payment.js";
-import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 import emailOTP from "../models/EmailOTPBase.js";
 import phoneOTP from "../models/PhoneOTPBase.js";
@@ -32,6 +29,140 @@ export function setGridFSBucket(bucket) {
 const otpCache = {};
 const WINDOW_SECONDS = 60 * 60; // 1 hour
 const MAX_OTPS = 5;
+
+
+async function paginateUsers(query, projection, pageNumber, rowsPerPage) {
+  const totalCount = await Candidate.countDocuments(query);
+  const users = await Candidate.find(query, projection)
+    .skip((pageNumber - 1) * rowsPerPage)
+    .limit(rowsPerPage);
+  return { users, totalCount };
+}
+
+async function fetchUserImages(imageIds) {
+  const filesCursor = mongoose.connection.db
+    .collection("fs.files")
+    .find({ _id: { $in: imageIds } });
+
+  const files = await filesCursor.toArray();
+
+  const chunksCursor = mongoose.connection.db
+    .collection("fs.chunks")
+    .find({ files_id: { $in: imageIds } })
+    .sort({ n: 1 });
+
+  const chunks = await chunksCursor.toArray();
+
+  const fileChunksMap = files.reduce((acc, file) => {
+    const fileChunk = chunks.filter((c) => c.files_id.equals(file._id));
+    acc[file._id.toString()] = fileChunk.map((c) =>
+      Buffer.from(c.data.buffer).toString("base64")
+    );
+    return acc;
+  }, {});
+
+  return { files, fileChunksMap };
+}
+
+function mapUsers(users, files, fileChunksMap) {
+  return users.map((u) => {
+    const fileId = u.image?.[0];
+    const file = files.find((f) =>
+      f._id.equals(new mongoose.Types.ObjectId(fileId))
+    );
+
+    const media = file
+      ? [
+          {
+            fileId: file._id.toString(),
+            filename: file.filename || "",
+            contentType: file.contentType || "image/jpeg",
+            length: file.length,
+            chunks: fileChunksMap[file._id.toString()] || [],
+          },
+        ]
+      : [];
+
+    return {
+      topData: {
+        name: `${u.firstName} ${u.lastName}`,
+        community: u.community,
+        address: u.addressInShort,
+        income:
+          u.jobBusiness && u.incomeGroup
+            ? `${u.jobBusiness}, earns ${u.incomeGroup}`
+            : "NA",
+        _id: u._id,
+        isVerified: u.isVerified,
+        profileImage: media,
+        birthDate: u.birthDate,
+        birthTime: u.birthTime,
+        birthPlace: u.birthPlace,
+      },
+    };
+  });
+}
+
+async function sendOtpToUser(phone, otp) {
+  console.log("sendOtpToUser");
+
+  const url = `https://graph.facebook.com/v19.0/${process.env.META_PHONE_NUMBER_ID}/messages`;
+
+  const headers = {
+    Authorization: `Bearer ${process.env.META_ACCESS_TOKEN}`,
+    "Content-Type": "application/json",
+  };
+
+  const body = JSON.stringify({
+    messaging_product: "whatsapp",
+    to: phone,
+    type: "text",
+    text: {
+      body: `Your OTP is: ${otp}. This OTP is valid for 1 hour. Do not share this with anyone.`,
+    },
+  });
+  console.log(body);
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers,
+      body,
+    });
+
+    const data = await response.json();
+    console.log("Meta API response:", response.status, data);
+
+    if (response.ok) {
+      await saveOtp(phone, otp);
+    } else {
+      console.error("Failed to send OTP:", data);
+    }
+  } catch (err) {
+    console.error("Error sending OTP:", err);
+  }
+}
+
+async function saveOtp(phone, otp) {
+  await phoneOTP.create({
+    phoneNumber: phone,
+    OTP: otp,
+  });
+
+  console.log(`Saved OTP ${otp} for ${phone}`);
+}
+
+function canSendOtp(phone) {
+  const now = Date.now() / 1000;
+  otpCache[phone] = (otpCache[phone] || []).filter(
+    (t) => now - t < WINDOW_SECONDS
+  );
+
+  if (otpCache[phone].length < MAX_OTPS) {
+    otpCache[phone].push(now);
+    return true;
+  }
+  return false;
+}
 
 userRoutes.post(
   "/update-my-profile",
@@ -265,79 +396,6 @@ userRoutes.post(
   }
 );
 
-
-async function paginateUsers(query, projection, pageNumber, rowsPerPage) {
-  const totalCount = await Candidate.countDocuments(query);
-  const users = await Candidate.find(query, projection)
-    .skip((pageNumber - 1) * rowsPerPage)
-    .limit(rowsPerPage);
-  return { users, totalCount };
-}
-
-async function fetchUserImages(imageIds) {
-  const filesCursor = mongoose.connection.db
-    .collection("fs.files")
-    .find({ _id: { $in: imageIds } });
-
-  const files = await filesCursor.toArray();
-
-  const chunksCursor = mongoose.connection.db
-    .collection("fs.chunks")
-    .find({ files_id: { $in: imageIds } })
-    .sort({ n: 1 });
-
-  const chunks = await chunksCursor.toArray();
-
-  const fileChunksMap = files.reduce((acc, file) => {
-    const fileChunk = chunks.filter((c) => c.files_id.equals(file._id));
-    acc[file._id.toString()] = fileChunk.map((c) =>
-      Buffer.from(c.data.buffer).toString("base64")
-    );
-    return acc;
-  }, {});
-
-  return { files, fileChunksMap };
-}
-
-function mapUsers(users, files, fileChunksMap) {
-  return users.map((u) => {
-    const fileId = u.image?.[0];
-    const file = files.find((f) =>
-      f._id.equals(new mongoose.Types.ObjectId(fileId))
-    );
-
-    const media = file
-      ? [
-          {
-            fileId: file._id.toString(),
-            filename: file.filename || "",
-            contentType: file.contentType || "image/jpeg",
-            length: file.length,
-            chunks: fileChunksMap[file._id.toString()] || [],
-          },
-        ]
-      : [];
-
-    return {
-      topData: {
-        name: `${u.firstName} ${u.lastName}`,
-        community: u.community,
-        address: u.addressInShort,
-        income:
-          u.jobBusiness && u.incomeGroup
-            ? `${u.jobBusiness}, earns ${u.incomeGroup}`
-            : "NA",
-        _id: u._id,
-        isVerified: u.isVerified,
-        profileImage: media,
-        birthDate: u.birthDate,
-        birthTime: u.birthTime,
-        birthPlace: u.birthPlace,
-      },
-    };
-  });
-}
-
 userRoutes.post(
   "/get-my-saved-profiles",
   authMiddleware,
@@ -515,118 +573,6 @@ userRoutes.post(
 );
 
 userRoutes.post(
-  "/verfiy-email-send-otp",
-  authMiddleware,
-  updateLastActivity,
-  async (req, res) => {
-    try {
-      const { userName } = req.body;
-      let otp = "";
-      const characters = "1234567890";
-      for (let i = 0; i < 6; i++) {
-        const randomInd = Math.floor(Math.random() * characters.length);
-        otp += characters.charAt(randomInd);
-      }
-      await emailOTP.create({
-        OTP: otp,
-        userId: req.user._id,
-      });
-      const transporter = nodemailer.createTransport({
-        service: "gmail",
-        auth: {
-          user: process.env.GMAIL_USER,
-          pass: process.env.GMAIL_PASS,
-        },
-      });
-
-      const mailOptions = {
-        from: `"Suta Bandhan Support" <${process.env.GMAIL_USER}>`,
-        to: req.user.userEmail,
-        bcc: "vickys2962@gmail.com;abhibdesh@gmail.com",
-        subject: "Email Verification",
-        html: `
-              <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8" />
-        <style>
-          body {
-            font-family: Arial, sans-serif;
-            background-color: #f5f7fa;
-            margin: 0;
-            padding: 0;
-          }
-          .container {
-            max-width: 600px;
-            margin: 30px auto;
-            background-color: #ffffff;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-            padding: 30px;
-          }
-          .header {
-            text-align: center;
-            background-color: #e68a9e;
-            padding: 20px;
-            font-size: 24px;
-          }
-          .content {
-            padding: 20px;
-            font-size: 16px;
-            color: #333333;
-            line-height: 1.6;
-          }
-          .otp-box {
-            display: inline-block;
-            background-color:rgb(252, 237, 255);
-            border: 1px dashed #e68a9e;
-            font-size: 24px;
-            font-weight: bold;
-            padding: 12px 24px;
-            margin: 20px 0;
-            border-radius: 6px;
-            letter-spacing: 4px;
-          }
-          .footer {
-            text-align: center;
-            font-size: 13px;
-            color: #888888;
-            margin-top: 30px;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">Verify Your Email</div>
-          <div class="content">
-            <p>Hi ${userName},</p>
-            <p>Thank you for signing up! Please use the following One-Time Password (OTP) to verify your email address:</p>
-            <div class="otp-box">${otp}</div>
-            <p>This OTP is valid for the next 30 minutes. Please do not share it with anyone.</p>
-            <p>If you did not request this, please ignore this email.</p>
-            <p>Best regards,<br />Team Fyjix</p>
-          </div>
-          <div class="footer">
-            &copy; ${new Date().getFullYear()} Suta Bandhan By Fyjix. All rights reserved.
-          </div>
-        </div>
-      </body>
-      </html>
-    `,
-      };
-      transporter
-        .sendMail(mailOptions)
-        .then((info) => console.log("Email sent:", info.response))
-        .catch((error) => console.error("Error sending email:", error));
-    } catch (error) {
-      console.log(error);
-      return res.status(500).json({ message: "failure", data: error.message });
-    }
-  }
-);
-
-userRoutes.post(
   "/verify-email",
   authMiddleware,
   updateLastActivity,
@@ -722,67 +668,6 @@ userRoutes.post("/webhook", async (req, res) => {
   }
   res.sendStatus(200);
 });
-
-async function sendOtpToUser(phone, otp) {
-  console.log("sendOtpToUser");
-
-  const url = `https://graph.facebook.com/v19.0/${process.env.META_PHONE_NUMBER_ID}/messages`;
-
-  const headers = {
-    Authorization: `Bearer ${process.env.META_ACCESS_TOKEN}`,
-    "Content-Type": "application/json",
-  };
-
-  const body = JSON.stringify({
-    messaging_product: "whatsapp",
-    to: phone,
-    type: "text",
-    text: {
-      body: `Your OTP is: ${otp}. This OTP is valid for 1 hour. Do not share this with anyone.`,
-    },
-  });
-  console.log(body);
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers,
-      body,
-    });
-
-    const data = await response.json();
-    console.log("Meta API response:", response.status, data);
-
-    if (response.ok) {
-      await saveOtp(phone, otp);
-    } else {
-      console.error("Failed to send OTP:", data);
-    }
-  } catch (err) {
-    console.error("Error sending OTP:", err);
-  }
-}
-
-async function saveOtp(phone, otp) {
-  await phoneOTP.create({
-    phoneNumber: phone,
-    OTP: otp,
-  });
-
-  console.log(`Saved OTP ${otp} for ${phone}`);
-}
-
-function canSendOtp(phone) {
-  const now = Date.now() / 1000;
-  otpCache[phone] = (otpCache[phone] || []).filter(
-    (t) => now - t < WINDOW_SECONDS
-  );
-
-  if (otpCache[phone].length < MAX_OTPS) {
-    otpCache[phone].push(now);
-    return true;
-  }
-  return false;
-}
 
 userRoutes.post(
   "/verify-phone",
