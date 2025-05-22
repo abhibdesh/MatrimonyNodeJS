@@ -111,7 +111,7 @@ emailRoutes.post(
       const transporter = createTransporter()
 
       let receiverMail;
-      if (environment === "LOCAL" || environment === "UAT") {
+      if (environment === "LOCAL" || environment === "UAT" || environment === "DEVELOPMENT") {
         receiverMail = testEmail;
       } else {
         receiverMail = req.user.userEmail;
@@ -212,7 +212,7 @@ emailRoutes.post("/forgot-password", async (req, res) => {
       const transporter = createTransporter();
 
       let receiver;
-      if (environment === "LOCAL" || environment === "UAT") {
+      if (environment === "LOCAL" || environment === "UAT" || environment === "DEVELOPMENT") {
         receiver = testEmail;
       } else {
         receiver = userEmail;
