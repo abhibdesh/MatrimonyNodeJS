@@ -13,6 +13,7 @@ import dotenv from "dotenv";
 import emailOTP from "../models/EmailOTPBase.js";
 import phoneOTP from "../models/PhoneOTPBase.js";
 import UserBase from "../models/UserBase.js";
+import { body, validationResult } from "express-validator";
 dotenv.config();
 
 const userRoutes = express.Router();
@@ -29,7 +30,6 @@ export function setGridFSBucket(bucket) {
 const otpCache = {};
 const WINDOW_SECONDS = 60 * 60; // 1 hour
 const MAX_OTPS = 5;
-
 
 async function paginateUsers(query, projection, pageNumber, rowsPerPage) {
   const totalCount = await Candidate.countDocuments(query);
@@ -166,10 +166,91 @@ function canSendOtp(phone) {
 
 userRoutes.post(
   "/update-my-profile",
+  [
+    body("firstName")
+      .trim()
+      .notEmpty()
+      .withMessage("First name is required")
+      .matches(/^[A-Za-z\s]+$/)
+      .withMessage("First name can only contain letters and spaces"),
+    body("lastName")
+      .trim()
+      .notEmpty()
+      .withMessage("Last name is required")
+      .matches(/^[A-Za-z\s]+$/)
+      .withMessage("Last name can only contain letters and spaces"),
+    body("userEmail")
+      .notEmpty()
+      .withMessage("Email is mandatory")
+      .isEmail()
+      .withMessage("Please enter a valid email id"),
+    body("phoneNumber")
+      .notEmpty()
+      .withMessage("Phone number is mandatory")
+      .isMobilePhone()
+      .withMessage("Please enter a valid Phone Number"),
+    body("currentAddress")
+      .matches(/^[A-Za-z0-9,\.\-\/&\s\n\r\t]+$/)
+      .withMessage("No special characters are allowed in address"),
+    body("height")
+      .optional({ checkFalsy: true }) // allows "", null, undefined
+      .isFloat()
+      .withMessage("Invalid height format. eg: 5.6"),
+    body("degreeName")
+      .matches(/^[A-Za-z,\.\-\/&\s\n\r\t]+$/)
+      .withMessage("Invalid Degree Name. eg: BE. IT"),
+    body("fieldJob")
+      .matches(/^[A-Za-z,\.\-\/&\s\n\r\t]+$/)
+      .withMessage("Invalid Field/Job Name. eg: Project Manager"),
+    body("companyName")
+      .matches(/^[A-Za-z0-9,\.\-\/&\s\n\r\t]+$/)
+      .withMessage("Special Characters are not allowed in Company Name"),
+    body("gotra")
+      .matches(/^[A-Za-z,\.\-\/&\s\n\r\t]+$/)
+      .withMessage("Special Characters are not allowed in Gotra"),
+    body("dosha")
+      .matches(/^[A-Za-z,\.\-\/&\s\n\r\t]+$/)
+      .withMessage("Special Characters are not allowed in Dosha"),
+    body("devak")
+      .matches(/^[A-Za-z,\.\-\/&\s\n\r\t]+$/)
+      .withMessage("Special Characters are not allowed in Devak"),
+    body("charan")
+      .optional({ checkFalsy: true }) // allows "", null, undefined
+      .isNumeric()
+      .withMessage("Charan should be a number"),
+    body("siblingCount")
+      .optional({ checkFalsy: true }) // allows "", null, undefined
+      .isNumeric()
+      .withMessage("Sibling count should be a number"),
+    body("educationOfSiblings")
+      .matches(/^[A-Za-z0-9,\.\-\/&\s\n\r\t]+$/)
+      .withMessage("Details of siblings should not have special characters"),
+    body("property")
+      .matches(/^[A-Za-z0-9,\.\-\/&\s\n\r\t]+$/)
+      .withMessage("Property should not have special characters"),
+    body("educationOfMother")
+      .matches(/^[A-Za-z0-9,\.\-\/&\s\n\r\t]+$/)
+      .withMessage("Education of mother should not have special characters"),
+    body("educationOfFather")
+      .matches(/^[A-Za-z0-9,\.\-\/&\s\n\r\t]+$/)
+      .withMessage("Education of Father should not have special characters"),
+    body("motherFamilyDetails")
+      .matches(/^[A-Za-z0-9,\.\-\/&\s\n\r\t]+$/)
+      .withMessage("Mother Family details should not have special characters"),
+    body("fatherFamilyDetails")
+      .matches(/^[A-Za-z0-9,\.\-\/&\s\n\r\t]+$/)
+      .withMessage("Father Family details should not have special characters"),
+  ],
   authMiddleware,
   updateLastActivity,
   async (req, res) => {
     try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res
+          .status(400)
+          .json({ message: "validation_error", errors: errors.array() });
+      }
       const {
         firstName,
         lastName,
