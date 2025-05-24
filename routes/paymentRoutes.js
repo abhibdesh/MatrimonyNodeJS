@@ -14,7 +14,7 @@ paymentRoutes.post(
   updateLastActivity,
   async (req, res) => {
     try {
-      if(req.user.__t !=="candidate"){
+      if(req.user.__t ==="candidate"){
         const { planDuration, profileCount } = req.body;
         console.log(planDuration)
         console.log(profileCount)
