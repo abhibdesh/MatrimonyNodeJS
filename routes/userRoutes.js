@@ -190,7 +190,7 @@ userRoutes.post(
       .isMobilePhone()
       .withMessage("Please enter a valid Phone Number"),
     body("currentAddress")
-      .optional({ checkFalsy: true })
+      .optional({ checkFalsy: true }) // allows "", null, undefined
       .matches(/^[A-Za-z0-9,\.\-\/&\s\n\r\t]+$/)
       .withMessage("No special characters are allowed in address"),
     body("height")
@@ -198,27 +198,27 @@ userRoutes.post(
       .isFloat()
       .withMessage("Invalid height format. eg: 5.6"),
     body("degreeName")
-      .optional({ checkFalsy: true })
+      .optional({ checkFalsy: true }) // allows "", null, undefined
       .matches(/^[A-Za-z,\.\-\/&\s\n\r\t]+$/)
       .withMessage("Invalid Degree Name. eg: BE. IT"),
     body("fieldJob")
-      .optional({ checkFalsy: true })
+      .optional({ checkFalsy: true }) // allows "", null, undefined
       .matches(/^[A-Za-z,\.\-\/&\s\n\r\t]+$/)
       .withMessage("Invalid Field/Job Name. eg: Project Manager"),
     body("companyName")
-      .optional({ checkFalsy: true })
+      .optional({ checkFalsy: true }) // allows "", null, undefined
       .matches(/^[A-Za-z0-9,\.\-\/&\s\n\r\t]+$/)
       .withMessage("Special Characters are not allowed in Company Name"),
     body("gotra")
-      .optional({ checkFalsy: true })
+      .optional({ checkFalsy: true }) // allows "", null, undefined
       .matches(/^[A-Za-z,\.\-\/&\s\n\r\t]+$/)
       .withMessage("Special Characters are not allowed in Gotra"),
     body("dosha")
-      .optional({ checkFalsy: true })
+      .optional({ checkFalsy: true }) // allows "", null, undefined
       .matches(/^[A-Za-z,\.\-\/&\s\n\r\t]+$/)
       .withMessage("Special Characters are not allowed in Dosha"),
     body("devak")
-      .optional({ checkFalsy: true })
+      .optional({ checkFalsy: true }) // allows "", null, undefined
       .matches(/^[A-Za-z,\.\-\/&\s\n\r\t]+$/)
       .withMessage("Special Characters are not allowed in Devak"),
     body("charan")
@@ -230,27 +230,27 @@ userRoutes.post(
       .isNumeric()
       .withMessage("Sibling count should be a number"),
     body("educationOfSiblings")
-      .optional({ checkFalsy: true })
+      .optional({ checkFalsy: true }) // allows "", null, undefined
       .matches(/^[A-Za-z0-9,\.\-\/&\s\n\r\t]+$/)
       .withMessage("Details of siblings should not have special characters"),
     body("property")
-      .optional({ checkFalsy: true })
+      .optional({ checkFalsy: true }) // allows "", null, undefined
       .matches(/^[A-Za-z0-9,\.\-\/&\s\n\r\t]+$/)
       .withMessage("Property should not have special characters"),
     body("educationOfMother")
-      .optional({ checkFalsy: true })
+      .optional({ checkFalsy: true }) // allows "", null, undefined
       .matches(/^[A-Za-z0-9,\.\-\/&\s\n\r\t]+$/)
       .withMessage("Education of mother should not have special characters"),
     body("educationOfFather")
-      .optional({ checkFalsy: true })
+      .optional({ checkFalsy: true }) // allows "", null, undefined
       .matches(/^[A-Za-z0-9,\.\-\/&\s\n\r\t]+$/)
       .withMessage("Education of Father should not have special characters"),
     body("motherFamilyDetails")
-      .optional({ checkFalsy: true })
+      .optional({ checkFalsy: true }) // allows "", null, undefined
       .matches(/^[A-Za-z0-9,\.\-\/&\s\n\r\t]+$/)
       .withMessage("Mother Family details should not have special characters"),
     body("fatherFamilyDetails")
-      .optional({ checkFalsy: true })
+      .optional({ checkFalsy: true }) // allows "", null, undefined
       .matches(/^[A-Za-z0-9,\.\-\/&\s\n\r\t]+$/)
       .withMessage("Father Family details should not have special characters"),
   ],

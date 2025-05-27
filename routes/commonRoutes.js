@@ -262,7 +262,7 @@ commonRoutes.post(
         _id: { $ne: currentUser._id },
         isDeleted: false,
         isActive: true,
-        community:currentUser.community
+        community:{$eq: currentUser.community, $ne:""}
       };
 
       if(filters.expectedAgeGapMin !==null){
@@ -275,7 +275,6 @@ commonRoutes.post(
       }
 
       query.height ={$gte:filters.selectedFromHeight,$lte:filters.selectedToHeight};
-      query.community ={$ne:""};
       query.isVerified = true;
       query.isEmailVerified = true;
       query.isPhoneVerified = true;
