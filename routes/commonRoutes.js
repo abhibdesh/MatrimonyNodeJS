@@ -313,10 +313,6 @@ commonRoutes.post(
         query.birthDate = { $lte: toDate };
       }
 
-      query.height = {
-        $gte: filters.selectedFromHeight,
-        $lte: filters.selectedToHeight,
-      };
       query.isVerified = true;
       query.isEmailVerified = true;
       query.isPhoneVerified = true;
@@ -326,6 +322,41 @@ commonRoutes.post(
         query.lookingFor = { $ne: currentUser.lookingFor };
         query.__t = "candidate";
         query.community = { $eq: currentUser.community, $ne: "" };
+        query.$or = [
+          {
+            $expr: {
+              $and: [
+                {
+                  $gte: [
+                    {
+                      $convert: {
+                        input: "$height",
+                        to: "double",
+                        onError: 0, // fallback value on conversion error
+                        onNull: 0, // fallback value when field is null
+                      },
+                    },
+                    parseFloat(filters.selectedFromHeight),
+                  ],
+                },
+                {
+                  $lte: [
+                    {
+                      $convert: {
+                        input: "$height",
+                        to: "double",
+                        onError: 0,
+                        onNull: 0,
+                      },
+                    },
+                    parseFloat(filters.selectedToHeight),
+                  ],
+                },
+              ],
+            },
+          },
+          { height: "" },
+        ];
       } else if (req.user.__t === "admin") {
         const admin = await Admin.findById(req.user._id);
         applyFilters(query, filters, currentUser);
@@ -649,10 +680,22 @@ commonRoutes.get(
         educationOfFather: data.educationOfFather || "Not Provided",
         motherFamilyDetails: data.motherFamilyDetails || "Not Provided",
         fatherFamilyDetails: data.fatherFamilyDetails || "Not Provided",
-        selectedEducations: data.expectedEducations.join(", "),
-        selectedIncome: data.expectedIncome.join(", "),
-        expectedEatingHabits: data.expectedEatingHabits.join(", "),
-        expectedGana: data.expectedGana.join(", "),
+        selectedEducations:
+          data.expectedEducations.length === 0
+            ? "No bar"
+            : data.expectedEducations.join(", "),
+        selectedIncome:
+          data.expectedIncome.length === 0
+            ? "No bar"
+            : data.expectedIncome.join(", "),
+        expectedEatingHabits:
+          data.expectedEatingHabits.length === 0
+            ? "No bar"
+            : data.expectedEatingHabits.join(", "),
+        expectedGana:
+          data.expectedGana.length === 0
+            ? "No bar"
+            : data.expectedGana.join(", "),
         expectedLocality:
           data.expectedLocality.length === 0
             ? "No Bar"
@@ -681,8 +724,14 @@ commonRoutes.get(
         selectedSiblingsCousinsUpto:
           data.expectedSiblingsCousinsUpto || "No bar",
         expectedAgeGap: data.expectedAgeGapMin || "No bar",
-        expectedAgeGapMax: data.expectedAgeGapMax ===null? "No bar": new Date(data.expectedAgeGapMax).getFullYear(),
-        expectedAgeGapMin: data.expectedAgeGapMin ===null? "No bar": new Date(data.expectedAgeGapMin).getFullYear(),
+        expectedAgeGapMax:
+          data.expectedAgeGapMax === null
+            ? "No bar"
+            : new Date(data.expectedAgeGapMax).getFullYear(),
+        expectedAgeGapMin:
+          data.expectedAgeGapMin === null
+            ? "No bar"
+            : new Date(data.expectedAgeGapMin).getFullYear(),
         strictMatch: data.strictMatch ? "Yes" : "No",
         isVerified: data.isVerified,
       };
