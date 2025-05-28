@@ -243,6 +243,8 @@ commonRoutes.post(
   async (req, res) => {
     try {
       const { filters, rowsPerPage, pageNumber } = req.body;
+      console.log("pageNumber")
+      console.log(pageNumber)
       const currentUser = await UserBase.findById(req.user._id);
       const projection = {
         firstName: 1,
@@ -262,7 +264,6 @@ commonRoutes.post(
         _id: { $ne: currentUser._id },
         isDeleted: false,
         isActive: true,
-        community:{$eq: currentUser.community, $ne:""}
       };
 
       if(filters.expectedAgeGapMin !==null){
@@ -284,6 +285,7 @@ commonRoutes.post(
         applyFilters(query, filters, currentUser);
         query.lookingFor = { $ne: currentUser.lookingFor };
         query.__t ="candidate";
+        query.community={$eq: currentUser.community, $ne:""}
       } else if (req.user.__t === "admin") {
         const admin = await Admin.findById(req.user._id);
         applyFilters(query, filters, currentUser);
