@@ -20,7 +20,7 @@ commonRoutes.get("/health-check", async (req, res) => {
   try {
     return res.status(200).json({ message: "success", data: "Healthy" });
   } catch (error) {
-    console.log(error)
+    console.log(error);
     return res.status(500).json({ message: "failure", data: error.message });
   }
 });
@@ -29,22 +29,52 @@ const isFilled = (value) => {
   return !(
     value === null ||
     value === undefined ||
-    (typeof value === 'string' && value.trim() === '') ||
+    (typeof value === "string" && value.trim() === "") ||
     (Array.isArray(value) && value.length === 0) ||
-    (typeof value === 'number' && isNaN(value))
+    (typeof value === "number" && isNaN(value))
   );
 };
 
 const calculateProfileCompletion = async (id) => {
   const userObj = await UserBase.findById(id).lean();
-  const keysToCheck = Object.keys(userObj).filter(
-    (key) => ['addressInShort','currentAddress',
-      'community','image','images','birthDate','birthPlace','height','bloodGroup','disabilityYN',
-      'disablityDescription','degreeDiploma','degreeDiploma','degreeName',
-      'fieldJob','companyName','jobBusiness','incomeGroup','eatingHabits',
-      'raas','gotra','dosha','gana','devak','nakshatra','charan','naadi','familyType',
-      'siblingCount','educationOfSiblings','property','educationOfMother','educationOfFather',
-      'motherFamilyDetails','fatherFamilyDetails'].includes(key)
+  const keysToCheck = Object.keys(userObj).filter((key) =>
+    [
+      "addressInShort",
+      "currentAddress",
+      "community",
+      "image",
+      "images",
+      "birthDate",
+      "birthPlace",
+      "height",
+      "bloodGroup",
+      "disabilityYN",
+      "disablityDescription",
+      "degreeDiploma",
+      "degreeDiploma",
+      "degreeName",
+      "fieldJob",
+      "companyName",
+      "jobBusiness",
+      "incomeGroup",
+      "eatingHabits",
+      "raas",
+      "gotra",
+      "dosha",
+      "gana",
+      "devak",
+      "nakshatra",
+      "charan",
+      "naadi",
+      "familyType",
+      "siblingCount",
+      "educationOfSiblings",
+      "property",
+      "educationOfMother",
+      "educationOfFather",
+      "motherFamilyDetails",
+      "fatherFamilyDetails",
+    ].includes(key)
   );
 
   const total = keysToCheck.length;
@@ -67,7 +97,7 @@ async function paginateUsers(query, projection, pageNumber, rowsPerPage) {
 }
 
 function applyFilters(query, filters = {}, currentUser = {}) {
-  const toArray = (val) => Array.isArray(val) ? val : [];
+  const toArray = (val) => (Array.isArray(val) ? val : []);
 
   const mergeOrAddExpected = (filterKey, expectedKey) => {
     const filterVals = toArray(filters?.[filterKey]);
@@ -89,7 +119,11 @@ function applyFilters(query, filters = {}, currentUser = {}) {
     ["naadi", "expectedNaadi", "expectedNaadi"],
     ["raas", "expectedRaas", "expectedRaas"],
     ["familyType", "expectedFamilyType", "expectedFamilyType"],
-    ["selectedSiblingsCousinsUpto", "selectedSiblingsCousinsUpto", "expectedSiblingsCousinsUpto"],
+    [
+      "selectedSiblingsCousinsUpto",
+      "selectedSiblingsCousinsUpto",
+      "expectedSiblingsCousinsUpto",
+    ],
     ["profileWithImages", "profileWithImages", "profileWithImages"],
   ];
 
@@ -207,11 +241,11 @@ commonRoutes.post("/user-login", async (req, res) => {
     return res.status(200).json({
       message: "success",
       data: "User logged in successfully",
-      percent: percent
+      percent: percent,
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({message: "failure", data: error.message });
+    return res.status(500).json({ message: "failure", data: error.message });
   }
 });
 
@@ -222,7 +256,7 @@ commonRoutes.get(
   async (req, res) => {
     try {
       const menu = await MenuMaster.find(
-        { isActive:true,__t: { $in: [req.user.__t] } },
+        { isActive: true, __t: { $in: [req.user.__t] } },
         { _id: 0, displayName: 1, path: 1, priority: 1 }
       ).sort({ priority: 1 });
       res.status(200).json({
@@ -231,7 +265,7 @@ commonRoutes.get(
       });
     } catch (error) {
       console.error(error);
-      return res.status(500).json({ message: "failure",data: error.message });
+      return res.status(500).json({ message: "failure", data: error.message });
     }
   }
 );
@@ -243,8 +277,8 @@ commonRoutes.post(
   async (req, res) => {
     try {
       const { filters, rowsPerPage, pageNumber } = req.body;
-      console.log("pageNumber")
-      console.log(pageNumber)
+      console.log("pageNumber");
+      console.log(pageNumber);
       const currentUser = await UserBase.findById(req.user._id);
       const projection = {
         firstName: 1,
@@ -266,41 +300,47 @@ commonRoutes.post(
         isActive: true,
       };
 
-      if(filters.expectedAgeGapMin !==null){
-        const fromDate = new Date(`${filters.expectedAgeGapMin}-01-01T00:00:00.000Z`);
-        query.birthDate ={$gte:fromDate}
+      if (filters.expectedAgeGapMin !== null) {
+        const fromDate = new Date(
+          `${filters.expectedAgeGapMin}-01-01T00:00:00.000Z`
+        );
+        query.birthDate = { $gte: fromDate };
       }
-      if(filters.expectedAgeGapMax !==null){
-        const toDate = new Date(`${filters.expectedAgeGapMax}-12-31T23:59:59.999Z`);
-        query.birthDate ={$lte:toDate}
+      if (filters.expectedAgeGapMax !== null) {
+        const toDate = new Date(
+          `${filters.expectedAgeGapMax}-12-31T23:59:59.999Z`
+        );
+        query.birthDate = { $lte: toDate };
       }
 
-      query.height ={$gte:filters.selectedFromHeight,$lte:filters.selectedToHeight};
+      query.height = {
+        $gte: filters.selectedFromHeight,
+        $lte: filters.selectedToHeight,
+      };
       query.isVerified = true;
       query.isEmailVerified = true;
       query.isPhoneVerified = true;
 
-
       if (req.user.__t === "candidate") {
         applyFilters(query, filters, currentUser);
         query.lookingFor = { $ne: currentUser.lookingFor };
-        query.__t ="candidate";
-        query.community={$eq: currentUser.community, $ne:""}
+        query.__t = "candidate";
+        query.community = { $eq: currentUser.community, $ne: "" };
       } else if (req.user.__t === "admin") {
         const admin = await Admin.findById(req.user._id);
         applyFilters(query, filters, currentUser);
         query.referenceCode = admin.referenceCode;
-        query.__t ="candidate";
-        query.isVerified =true;
+        query.__t = "candidate";
+        query.isVerified = true;
         delete query.height;
       } else if (req.user.__t === "owner") {
         delete query.__t;
         delete query.lookingFor;
       }
-      console.log("filters")
-      console.log(filters)
-      console.log("query")
-      console.log(query)
+      console.log("filters");
+      console.log(filters);
+      console.log("query");
+      console.log(query);
       const { users, totalCount } = await paginateUsers(
         query,
         projection,
@@ -321,10 +361,11 @@ commonRoutes.post(
         totalCount,
         currentPage: pageNumber,
         rowsPerPage,
+        userRole: req.user.__t,
       });
     } catch (error) {
-      console.log(error)
-      res.status(500).json({ message: "failure", data:error.message });
+      console.log(error);
+      res.status(500).json({ message: "failure", data: error.message });
     }
   }
 );
@@ -348,13 +389,13 @@ commonRoutes.get(
             .sort({ n: 1 })
             .project({ data: 1 })
             .toArray();
-      
+
           const joined = chunks.map((c) => c.data.toString("base64")).join("");
-      
+
           const fileDoc = await mongoose.connection.db
             .collection("fs.files")
             .findOne({ _id: new mongoose.Types.ObjectId(fileId) });
-      
+
           return {
             fileId,
             filename: fileDoc.filename,
@@ -364,15 +405,15 @@ commonRoutes.get(
           };
         })
       );
-      
+
       return res.status(200).json({
         message: "success",
         data: user,
-        media:media,
-        percent : await calculateProfileCompletion(req.user._id)
+        media: media,
+        percent: await calculateProfileCompletion(req.user._id),
       });
     } catch (error) {
-      console.log(error)
+      console.log(error);
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }
@@ -532,7 +573,7 @@ commonRoutes.get(
         message: "success",
         data: finalData,
         media,
-        userRole:req.user.__t
+        userRole: req.user.__t,
       });
     } catch (error) {
       console.error(error);
@@ -540,7 +581,6 @@ commonRoutes.get(
     }
   }
 );
-
 
 commonRoutes.get(
   "/saved-profiles/get-profile-by-id/:userId",
@@ -573,6 +613,8 @@ commonRoutes.get(
 
       const data = await UserBase.findById(userId, userProjection).lean();
       if (!data) throw new Error("User not found");
+
+      console.log(data);
 
       const finalData = {
         image: data.image || "",
@@ -607,29 +649,40 @@ commonRoutes.get(
         educationOfFather: data.educationOfFather || "Not Provided",
         motherFamilyDetails: data.motherFamilyDetails || "Not Provided",
         fatherFamilyDetails: data.fatherFamilyDetails || "Not Provided",
-        selectedEducations: data.selectedEducations,
-        selectedIncome: data.selectedIncome,
-        expectedEatingHabits: data.expectedEatingHabits,
-        expectedGana: data.expectedGana,
-        expectedLocality: data.expectedLocality,
-        expectedNakshatra: data.expectedNakshatra,
-        expectedBloodGroups: data.expectedBloodGroups,
-        expectedNaadi: data.expectedNaadi,
-        expectedRaas: data.expectedRaas,
+        selectedEducations: data.expectedEducations.join(", "),
+        selectedIncome: data.expectedIncome.join(", "),
+        expectedEatingHabits: data.expectedEatingHabits.join(", "),
+        expectedGana: data.expectedGana.join(", "),
+        expectedLocality:
+          data.expectedLocality.length === 0
+            ? "No Bar"
+            : data.expectedLocality.join(", "),
+        expectedNakshatra:
+          data.expectedNakshatra.length === 0
+            ? "No Bar"
+            : data.expectedNakshatra.join(", "),
+        expectedBloodGroups:
+          data.expectedBloodGroups.length === 0
+            ? "No Bar"
+            : data.expectedBloodGroups.join(", "),
+        expectedNaadi:
+          data.expectedNaadi.length === 0
+            ? "No Bar"
+            : data.expectedNaadi.join(", "),
+        expectedRaas:
+          data.expectedRaas.length === 0
+            ? "No Bar"
+            : data.expectedRaas.join(", "),
         expectedHeight: data.expectedHeight || "No bar",
-        expectedFamilyType: data.expectedFamilyType,
+        expectedFamilyType:
+          data.expectedFamilyType.length === 0
+            ? "No Bar"
+            : data.expectedFamilyType.join(", "),
         selectedSiblingsCousinsUpto:
-          data.selectedSiblingsCousinsUpto || "No bar",
-        expectedAgeGap:
-          data.expectedAgeGapMin && data.expectedAgeGapMax
-            ? `${data.expectedAgeGapMin}-${data.expectedAgeGapMax} years`
-            : "No bar",
-        expectedAgeGapMax: data.expectedAgeGapMax
-          ? `${data.expectedAgeGapMax} years`
-          : "No bar",
-        expectedAgeGapMin: data.expectedAgeGapMin
-          ? `${data.expectedAgeGapMin} years`
-          : "No bar",
+          data.expectedSiblingsCousinsUpto || "No bar",
+        expectedAgeGap: data.expectedAgeGapMin || "No bar",
+        expectedAgeGapMax: data.expectedAgeGapMax ===null? "No bar": new Date(data.expectedAgeGapMax).getFullYear(),
+        expectedAgeGapMin: data.expectedAgeGapMin ===null? "No bar": new Date(data.expectedAgeGapMin).getFullYear(),
         strictMatch: data.strictMatch ? "Yes" : "No",
         isVerified: data.isVerified,
       };
@@ -821,7 +874,7 @@ commonRoutes.post(
         .status(200)
         .json({ message: "success", data: "Password changed successfully" });
     } catch (error) {
-      console.log(error)
+      console.log(error);
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }
@@ -835,7 +888,7 @@ commonRoutes.get("/get-unique-reference-codes", async (req, res) => {
     );
     return res.status(200).json({ message: "success", data: refCodes });
   } catch (error) {
-    console.log(error)
+    console.log(error);
     return res.status(500).json({ message: "failure", data: error.message });
   }
 });
@@ -856,7 +909,7 @@ commonRoutes.post(
         .status(200)
         .json({ message: "success", data: "Logged out successfully." });
     } catch (error) {
-      console.log(error)
+      console.log(error);
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }
@@ -867,7 +920,7 @@ commonRoutes.get("/get-districts", async (req, res) => {
     const disticts = await DistrictMaster.find({ isActive: true }, { _id: 0 });
     return res.status(200).json({ message: "success", data: disticts });
   } catch (error) {
-    console.log(error)
+    console.log(error);
     return res.status(500).json({ message: "failure", data: error.message });
   }
 });
