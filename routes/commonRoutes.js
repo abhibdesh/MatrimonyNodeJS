@@ -12,6 +12,7 @@ import DistrictMaster from "../models/DistrictsBase.js";
 import PaymentBase from "../models/Payment.js";
 import moment from "moment-timezone";
 import dotenv from "dotenv";
+import { body, validationResult } from "express-validator";
 dotenv.config();
 
 const commonRoutes = express.Router();
@@ -548,29 +549,58 @@ commonRoutes.get(
         disabilityYN: user.disabilityYN || "Not Applicable",
 
         // Expectations
-        selectedEducations: user.selectedEducations || "No bar",
-        selectedIncome: user.selectedIncome || "No bar",
-        expectedEatingHabits: user.expectedEatingHabits || "No bar",
-        expectedGana: user.expectedGana || "No bar",
-        expectedLocality: user.expectedLocality || "No bar",
-        expectedNakshatra: user.expectedNakshatra || "No bar",
-        expectedBloodGroups: user.expectedBloodGroups || "No bar",
-        expectedNaadi: user.expectedNaadi || "No bar",
-        expectedRaas: user.expectedRaas || "No bar",
+        selectedEducations:
+        user.expectedEducations.length === 0
+            ? "No bar"
+            : user.expectedEducations.join(", "),
+        selectedIncome:
+        user.expectedIncome.length === 0
+            ? "No bar"
+            : user.expectedIncome.join(", "),
+        expectedEatingHabits:
+        user.expectedEatingHabits.length === 0
+            ? "No bar"
+            : user.expectedEatingHabits.join(", "),
+        expectedGana:
+        user.expectedGana.length === 0
+            ? "No bar"
+            : user.expectedGana.join(", "),
+        expectedLocality:
+        user.expectedLocality.length === 0
+            ? "No Bar"
+            : user.expectedLocality.join(", "),
+        expectedNakshatra:
+        user.expectedNakshatra.length === 0
+            ? "No Bar"
+            : user.expectedNakshatra.join(", "),
+        expectedBloodGroups:
+        user.expectedBloodGroups.length === 0
+            ? "No Bar"
+            : user.expectedBloodGroups.join(", "),
+        expectedNaadi:
+        user.expectedNaadi.length === 0
+            ? "No Bar"
+            : user.expectedNaadi.join(", "),
+        expectedRaas:
+        user.expectedRaas.length === 0
+            ? "No Bar"
+            : user.expectedRaas.join(", "),
         expectedHeight: user.expectedHeight || "No bar",
-        expectedFamilyType: user.expectedFamilyType,
+        expectedFamilyType:
+        user.expectedFamilyType.length === 0
+            ? "No Bar"
+            : user.expectedFamilyType.join(", "),
         selectedSiblingsCousinsUpto:
-          user.selectedSiblingsCousinsUpto || "No bar",
-        expectedAgeGap:
-          user.expectedAgeGapMin && user.expectedAgeGapMax
-            ? `${user.expectedAgeGapMin}-${user.expectedAgeGapMax} years`
-            : "No bar",
-        expectedAgeGapMax: user.expectedAgeGapMax
-          ? `${user.expectedAgeGapMax} years`
-          : "No bar",
-        expectedAgeGapMin: user.expectedAgeGapMin
-          ? `${user.expectedAgeGapMin} years`
-          : "No bar",
+        user.expectedSiblingsCousinsUpto || "No bar",
+        expectedAgeGap: user.expectedAgeGapMin || "No bar",
+        expectedAgeGapMax:
+        user.expectedAgeGapMax === null
+            ? "No bar"
+            : new Date(user.expectedAgeGapMax).getFullYear(),
+        expectedAgeGapMin:
+        user.expectedAgeGapMin === null
+            ? "No bar"
+            : new Date(user.expectedAgeGapMin).getFullYear(),
         strictMatch: user.strictMatch ? "Yes" : "No",
         isVerified: user.isVerified,
       });
@@ -844,8 +874,25 @@ commonRoutes.get(
   }
 );
 
-commonRoutes.post("/add-new-candidate", async (req, res) => {
+commonRoutes.post("/add-new-candidate",
+  [
+    body("firstName").notEmpty().withMessage("First name is required").matches(/^[A-Za-z0-9,\.\-\/&\s\n\r\t]+$/)
+    .withMessage("Special characters are not allowed in first name"),
+    body("lastName").notEmpty().withMessage("Last name is required").matches(/^[A-Za-z0-9,\.\-\/&\s\n\r\t]+$/)
+    .withMessage("Special characters are not allowed in last name"),
+    body("userEmail").notEmpty().withMessage("Email is required").isEmail().withMessage("Please enter a valid email"),
+    body("userPassword").notEmpty().withMessage("Password is required"),
+    body("phoneNumber").notEmpty().withMessage("Phone number is required").isMobilePhone().withMessage("Please enter a valid phone number"),
+    body("lookingFor").notEmpty().withMessage("Please let us know if you are looking for a bride or groom"),
+  ],
+  async (req, res) => {
   try {
+
+     const errors = validationResult(req);
+          if (!errors.isEmpty()) {
+            return res.status(400).json({message :"validation_error", errors: errors.array() });
+          }
+
     const {
       firstName,
       lastName,
@@ -860,6 +907,12 @@ commonRoutes.post("/add-new-candidate", async (req, res) => {
 
     const user = await UserBase.findOne({ userEmail: userEmail });
     if (!user) {
+      const refCodes = await UserBase.find({ __t: "admin" }).distinct(
+        "referenceCode"
+      );
+      if(referenceCode !== "" && !refCodes.find((element) => element === referenceCode)){
+        return res.status(400).json({message:"failure", data:"Invalid Reference Code"})
+      }
       const hashedPassword = await bcrypt.hash(userPassword, 10);
       const newCandidate = await Candidate.create({
         firstName: firstName,
