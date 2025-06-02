@@ -4,6 +4,11 @@ import authMiddleware from "../middleware/auth.js";
 import mongoose from "mongoose";
 import multer from "multer";
 import { Readable } from "stream";
+import path from 'path';
+import fs from 'fs';
+import fsPromises from 'fs/promises';
+import os from 'os';
+import { v4 as uuidv4 } from 'uuid';
 import updateLastActivity from "../middleware/updateLastActivity.js";
 import Candidate from "../models/User.js";
 import Payment from "../models/Payment.js";
@@ -14,6 +19,8 @@ import emailOTP from "../models/EmailOTPBase.js";
 import phoneOTP from "../models/PhoneOTPBase.js";
 import UserBase from "../models/UserBase.js";
 import { body, validationResult } from "express-validator";
+import { google } from "googleapis";
+
 dotenv.config();
 
 const userRoutes = express.Router();
@@ -26,6 +33,97 @@ let gfsBucket;
 export function setGridFSBucket(bucket) {
   gfsBucket = bucket;
 }
+
+const credentials = JSON.parse(process.env.GOOGLE_API);
+
+const auth = new google.auth.GoogleAuth({
+  credentials,
+  scopes: ["https://www.googleapis.com/auth/drive"],
+});
+
+const drive = google.drive({ version: "v3", auth });
+
+async function uploadImageToDrive(buffer, originalName, mimeType, userId) {
+  const uuser = await Candidate.findById(userId);
+  const tempPath = path.join(os.tmpdir(), originalName);
+
+
+  await fsPromises.writeFile(tempPath, buffer);
+
+  const folderId = await getOrCreateUserFolder(userId);
+
+  const newFileName = `${Date.now()}-${uuidv4()}${path.extname(originalName)}`;
+
+  const fileMetadata = {
+    name: newFileName,
+    parents: [folderId],
+  };
+
+  const media = {
+    mimeType,
+    body: fs.createReadStream(tempPath),
+  };
+
+  const uploadedFile = await drive.files.create({
+    resource: fileMetadata,
+    media,
+    fields: 'id, webViewLink',
+  });
+
+  await drive.permissions.create({
+    fileId: uploadedFile.data.id,
+    requestBody: {
+      role: 'reader',
+      type: 'anyone',
+    },
+  });
+
+  await fsPromises.unlink(tempPath);
+
+  uuser.images.push({
+    fileId: uploadedFile.data.id,
+    fileName: newFileName,
+    webViewLink: uploadedFile.data.webViewLink,
+    uploadedAt:new Date()
+  })
+  await uuser.save();
+
+  return {
+    fileId: uploadedFile.data.id,
+    fileName: newFileName,
+    webViewLink: uploadedFile.data.webViewLink,
+  };
+}
+
+async function getOrCreateUserFolder(userId) {
+  // Check if folder exists
+  const FolderCreated = await Candidate.findById(userId);
+  if(FolderCreated.driveFolderId !== ""){
+    return FolderCreated.driveFolderId
+  }
+  else
+  {
+    const fileMetadata = {
+      name: userId,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: [process.env.GOOGLE_DRIVE_FOLDER_ID],
+    };
+  
+    const folder = await drive.files.create({
+      resource: fileMetadata,
+      fields: 'id',
+    });
+    
+    console.log(folder.data.id)
+    await Candidate.findByIdAndUpdate(userId,{
+      $set:{
+        driveFolderId: folder.data.id
+      }
+    })
+    return folder.data.id;
+  }  
+}
+
 
 const otpCache = {};
 const WINDOW_SECONDS = 60 * 60; // 1 hour
@@ -594,6 +692,7 @@ userRoutes.post(
                     $inc: { totalProfilesViewed: 1 },
                   }
                 );
+                // await User.updateOne({_id:userIdToAdd},{$addToSet: { savedMe: req.user._id }})
                 return res.status(200).json({
                   message: "success",
                   data: "Profile added successfully",
@@ -607,6 +706,7 @@ userRoutes.post(
                   $inc: { totalProfilesViewed: 1 },
                 }
               );
+              // await User.updateOne({_id:userIdToAdd},{$addToSet: { savedMe: req.user._id }})
               return res.status(200).json({
                 message: "success",
                 data: "Profile added successfully",
@@ -816,6 +916,47 @@ userRoutes.post(
   }
 );
 
+// userRoutes.get(
+//   "/get-images",
+//   authMiddleware,
+//   updateLastActivity,
+//   async (req, res) => {
+//     try {
+//       const userId = req.user._id;
+//       // 1. Get all files uploaded by this user
+//       const files = await mongoose.connection.db
+//         .collection("fs.files")
+//         .find({ "metadata.uploadedBy": userId })
+//         .toArray();
+
+//       // 2. For each file, fetch its chunks
+//       const media = await Promise.all(
+//         files.map(async (file) => {
+//           const chunks = await mongoose.connection.db
+//             .collection("fs.chunks")
+//             .find({ files_id: file._id })
+//             .sort({ n: 1 })
+//             .project({ data: 1 })
+//             .toArray();
+
+//           return {
+//             fileId: file._id,
+//             filename: file.filename,
+//             contentType: file.contentType,
+//             length: file.length,
+//             chunks: chunks.map((c) => c.data),
+//           };
+//         })
+//       );
+
+//       res.status(200).json({ media });
+//     } catch (error) {
+//       console.log(error);
+//       res.json({ message: "failure" });
+//     }
+//   }
+// );
+
 userRoutes.get(
   "/get-images",
   authMiddleware,
@@ -823,33 +964,34 @@ userRoutes.get(
   async (req, res) => {
     try {
       const userId = req.user._id;
+      const user = await Candidate.findById(userId)
       // 1. Get all files uploaded by this user
-      const files = await mongoose.connection.db
-        .collection("fs.files")
-        .find({ "metadata.uploadedBy": userId })
-        .toArray();
+      // const files = await mongoose.connection.db
+      //   .collection("fs.files")
+      //   .find({ "metadata.uploadedBy": userId })
+      //   .toArray();
 
-      // 2. For each file, fetch its chunks
-      const media = await Promise.all(
-        files.map(async (file) => {
-          const chunks = await mongoose.connection.db
-            .collection("fs.chunks")
-            .find({ files_id: file._id })
-            .sort({ n: 1 })
-            .project({ data: 1 })
-            .toArray();
+      // // 2. For each file, fetch its chunks
+      // const media = await Promise.all(
+      //   files.map(async (file) => {
+      //     const chunks = await mongoose.connection.db
+      //       .collection("fs.chunks")
+      //       .find({ files_id: file._id })
+      //       .sort({ n: 1 })
+      //       .project({ data: 1 })
+      //       .toArray();
 
-          return {
-            fileId: file._id,
-            filename: file.filename,
-            contentType: file.contentType,
-            length: file.length,
-            chunks: chunks.map((c) => c.data),
-          };
-        })
-      );
+      //     return {
+      //       fileId: file._id,
+      //       filename: file.filename,
+      //       contentType: file.contentType,
+      //       length: file.length,
+      //       chunks: chunks.map((c) => c.data),
+      //     };
+      //   })
+      // );
 
-      res.status(200).json({ media });
+      res.status(200).json({message:"success",data:user.images});
     } catch (error) {
       console.log(error);
       res.json({ message: "failure" });
@@ -857,61 +999,100 @@ userRoutes.get(
   }
 );
 
+// userRoutes.post(
+//   "/upload-image",
+//   authMiddleware,
+//   updateLastActivity,
+//   upload.single("file"),
+//   async (req, res) => {
+//     try {
+//       if (!req.file) {
+//         return res.status(400).json({ message: "No file uploaded" });
+//       }
+
+//       const userId = req.user._id;
+//       const user = await Candidate.findById(userId);
+//       if (!user) {
+//         return res.status(404).json({ message: "User not found" });
+//       }
+
+//       if (user.images.length >= 3) {
+//         return res.status(400).json({
+//           message: "failure",
+//           data: "Only three images are allowed. Kindly delete existing image/images to upload new.",
+//         });
+//       }
+
+//       const { buffer, originalname, mimetype } = req.file;
+//       const fileStream = new Readable();
+//       fileStream.push(buffer);
+//       fileStream.push(null);
+
+//       const uploadStream = gfsBucket.openUploadStream(originalname, {
+//         contentType: mimetype,
+//         metadata: {
+//           uploadedBy: userId,
+//           uploadedAt: new Date(),
+//         },
+//       });
+
+//       fileStream
+//         .pipe(uploadStream)
+//         .on("error", (error) => {
+//           console.error(error);
+//           res.status(500).json({ message: "failure", data: error.message });
+//         })
+//         .on("finish", async () => {
+//           user.images.push(uploadStream.id);
+//           await user.save();
+//           res.status(200).json({
+//             message: "success",
+//             fileId: uploadStream.id,
+//             data: "Image uploaded successfully",
+//           });
+//         });
+//     } catch (error) {
+//       console.error(error);
+//       res.status(500).json({ message: "failure", data: error.message });
+//     }
+//   }
+// );
+
+
+
 userRoutes.post(
-  "/upload-image",
+  '/upload-image',
   authMiddleware,
-  updateLastActivity,
-  upload.single("file"),
+  upload.single('file'),
   async (req, res) => {
     try {
       if (!req.file) {
-        return res.status(400).json({ message: "No file uploaded" });
+        return res.status(400).json({ message: 'No file uploaded' });
       }
-
       const userId = req.user._id;
-      const user = await Candidate.findById(userId);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      if (user.images.length >= 3) {
-        return res.status(400).json({
-          message: "failure",
-          data: "Only three images are allowed. Kindly delete existing image/images to upload new.",
-        });
-      }
-
       const { buffer, originalname, mimetype } = req.file;
-      const fileStream = new Readable();
-      fileStream.push(buffer);
-      fileStream.push(null);
 
-      const uploadStream = gfsBucket.openUploadStream(originalname, {
-        contentType: mimetype,
-        metadata: {
-          uploadedBy: userId,
-          uploadedAt: new Date(),
-        },
-      });
-
-      fileStream
-        .pipe(uploadStream)
-        .on("error", (error) => {
-          console.error(error);
-          res.status(500).json({ message: "failure", data: error.message });
-        })
-        .on("finish", async () => {
-          user.images.push(uploadStream.id);
-          await user.save();
-          res.status(200).json({
-            message: "success",
-            fileId: uploadStream.id,
-            data: "Image uploaded successfully",
-          });
+      const user = await Candidate.findById(userId);
+      if(user.images.length > 3){
+        res.status(200).json({
+          message: "success",
+          data: "You can upload maximum 3 images."
         });
+      }
+      else{
+        const uploaded = await uploadImageToDrive(buffer, originalname, mimetype, userId);    
+        res.status(200).json({
+          message: "success",
+          data: "Image uploaded successfully",
+          fileId: uploaded.fileId,
+          link: uploaded.webViewLink,
+        });
+      }
+
+      
     } catch (error) {
       console.error(error);
-      res.status(500).json({ message: "failure", data: error.message });
+      res.status(500).json({ message: 'Upload failed', error: error.message });
     }
   }
 );
@@ -1034,5 +1215,247 @@ userRoutes.get(
     }
   }
 );
+
+// userRoutes.post(
+//   "/get-saved-by-candidates",
+//   authMiddleware,
+//   updateLastActivity,
+//   async (req, res) => {
+//     try {
+//       const { filters, rowsPerPage, pageNumber } = req.body;
+//       console.log("pageNumber");
+//       console.log(pageNumber);
+//       const currentUser = await UserBase.findById(req.user._id);
+//       const projection = {
+//         firstName: 1,
+//         lastName: 1,
+//         birthDate: 1,
+//         birthTime: 1,
+//         birthPlace: 1,
+//         incomeGroup: 1,
+//         addressInShort: 1,
+//         community: 1,
+//         isVerified: 1,
+//         image: 1,
+//         __t: 1,
+//       };
+
+//       let query = {
+//         _id: { $ne: currentUser._id, $in:[currentUser.savedMe] },
+//         isDeleted: false,
+//         isActive: true,
+//       };
+
+//       if (filters.expectedAgeGapMin !== null) {
+//         const fromDate = new Date(
+//           `${filters.expectedAgeGapMin}-01-01T00:00:00.000Z`
+//         );
+//         query.birthDate = { $gte: fromDate };
+//       }
+//       if (filters.expectedAgeGapMax !== null) {
+//         const toDate = new Date(
+//           `${filters.expectedAgeGapMax}-12-31T23:59:59.999Z`
+//         );
+//         query.birthDate = { $lte: toDate };
+//       }
+
+//       query.isVerified = true;
+//       query.isEmailVerified = true;
+//       query.isPhoneVerified = true;
+
+//       if (req.user.__t === "candidate") {
+//         applyFilters(query, filters, currentUser);
+//         query.lookingFor = { $ne: currentUser.lookingFor };
+//         query.__t = "candidate";
+//         query.community = { $eq: currentUser.community, $ne: "" };
+//         query.$or = [
+//           {
+//             $expr: {
+//               $and: [
+//                 {
+//                   $gte: [
+//                     {
+//                       $convert: {
+//                         input: "$height",
+//                         to: "double",
+//                         onError: 0, // fallback value on conversion error
+//                         onNull: 0, // fallback value when field is null
+//                       },
+//                     },
+//                     parseFloat(filters.selectedFromHeight),
+//                   ],
+//                 },
+//                 {
+//                   $lte: [
+//                     {
+//                       $convert: {
+//                         input: "$height",
+//                         to: "double",
+//                         onError: 0,
+//                         onNull: 0,
+//                       },
+//                     },
+//                     parseFloat(filters.selectedToHeight),
+//                   ],
+//                 },
+//               ],
+//             },
+//           },
+//           { height: "" },
+//         ];
+//       } else if (req.user.__t === "admin") {
+//         const admin = await Admin.findById(req.user._id);
+//         applyFilters(query, filters, currentUser);
+//         query.referenceCode = admin.referenceCode;
+//         query.__t = "candidate";
+//         query.isVerified = true;
+//         delete query.height;
+//       } else if (req.user.__t === "owner") {
+//         delete query.__t;
+//         delete query.lookingFor;
+//       }
+//       console.log("filters");
+//       console.log(filters);
+//       console.log("query");
+//       console.log(query);
+//       const { users, totalCount } = await paginateUsers(
+//         query,
+//         projection,
+//         pageNumber,
+//         rowsPerPage
+//       );
+
+//       const imageIds = users
+//         .map((u) => u.image?.[0])
+//         .filter(Boolean)
+//         .map((id) => new mongoose.Types.ObjectId(id));
+//       const { files, fileChunksMap } = await fetchUserImages(imageIds);
+//       const finalDataList = mapUsers(users, files, fileChunksMap);
+
+//       res.json({
+//         message: "Success",
+//         users: finalDataList,
+//         totalCount,
+//         currentPage: pageNumber,
+//         rowsPerPage,
+//         userRole: req.user.__t,
+//       });
+//     } catch (error) {
+//       console.log(error);
+//       res.status(500).json({ message: "failure", data: error.message });
+//     }
+//   }
+// );
+
+// async function paginateUsers(query, projection, pageNumber, rowsPerPage) {
+//   const totalCount = await UserBase.countDocuments(query);
+//   const users = await UserBase.find(query, projection)
+//     .skip((pageNumber - 1) * rowsPerPage)
+//     .limit(rowsPerPage);
+//   return { users, totalCount };
+// }
+
+// function applyFilters(query, filters = {}, currentUser = {}) {
+//   const toArray = (val) => (Array.isArray(val) ? val : []);
+
+//   const mergeOrAddExpected = (filterKey, expectedKey) => {
+//     const filterVals = toArray(filters?.[filterKey]);
+//     const expectedVals = toArray(currentUser?.[expectedKey]);
+
+//     // Merge and deduplicate
+//     const mergedVals = [...new Set([...filterVals, ...expectedVals])];
+//     return mergedVals;
+//   };
+
+//   const mapFilters = [
+//     ["selectedEducations", "selectedEducations", "expectedEducations"],
+//     ["addressInShort", "selectedLocatities", "expectedLocatities"],
+//     ["incomeGroup", "selectedIncome", "expectedIncome"],
+//     ["eatingHabits", "expectedEatingHabits", "expectedEatingHabits"],
+//     ["gana", "expectedGana", "expectedGana"],
+//     ["nakshatra", "expectedNakshatra", "expectedNakshatra"],
+//     ["bloodGroup", "expectedBloodGroups", "expectedBloodGroups"],
+//     ["naadi", "expectedNaadi", "expectedNaadi"],
+//     ["raas", "expectedRaas", "expectedRaas"],
+//     ["familyType", "expectedFamilyType", "expectedFamilyType"],
+//     [
+//       "selectedSiblingsCousinsUpto",
+//       "selectedSiblingsCousinsUpto",
+//       "expectedSiblingsCousinsUpto",
+//     ],
+//     ["profileWithImages", "profileWithImages", "profileWithImages"],
+//   ];
+
+//   for (const [field, filterKey, expectedKey] of mapFilters) {
+//     const vals = mergeOrAddExpected(filterKey, expectedKey);
+//     if (vals.length > 0) {
+//       query[field] = { $in: vals };
+//     }
+//   }
+// }
+
+// function mapUsers(users, files, fileChunksMap) {
+//   return users.map((u) => {
+//     const fileId = u.image?.[0];
+//     const file = files.find((f) =>
+//       f._id.equals(new mongoose.Types.ObjectId(fileId))
+//     );
+
+//     const media = file
+//       ? [
+//           {
+//             fileId: file._id.toString(),
+//             filename: file.filename || "",
+//             contentType: file.contentType || "image/jpeg",
+//             length: file.length,
+//             chunks: fileChunksMap[file._id.toString()] || [],
+//           },
+//         ]
+//       : [];
+
+//     return {
+//       topData: {
+//         name: `${u.firstName} ${u.lastName}`,
+//         community: u.community,
+//         address: u.addressInShort,
+//         income:
+//           u.jobBusiness && u.incomeGroup
+//             ? `${u.jobBusiness}, earns ${u.incomeGroup}`
+//             : "NA",
+//         _id: u._id,
+//         isVerified: u.isVerified,
+//         profileImage: media,
+//         birthDate: u.birthDate,
+//         birthTime: u.birthTime,
+//         birthPlace: u.birthPlace,
+//       },
+//     };
+//   });
+// }
+
+// async function fetchUserImages(imageIds) {
+//   const filesCursor = mongoose.connection.db
+//     .collection("fs.files")
+//     .find({ _id: { $in: imageIds } });
+
+//   const files = await filesCursor.toArray();
+
+//   const chunksCursor = mongoose.connection.db
+//     .collection("fs.chunks")
+//     .find({ files_id: { $in: imageIds } })
+//     .sort({ n: 1 });
+
+//   const chunks = await chunksCursor.toArray();
+
+//   const fileChunksMap = files.reduce((acc, file) => {
+//     const fileChunk = chunks.filter((c) => c.files_id.equals(file._id));
+//     acc[file._id.toString()] = fileChunk.map((c) =>
+//       Buffer.from(c.data.buffer).toString("base64")
+//     );
+//     return acc;
+//   }, {});
+
+//   return { files, fileChunksMap };
+// }
 
 export default userRoutes;

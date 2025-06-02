@@ -1,3 +1,4 @@
+import { type } from "os";
 import UserBase from "./UserBase.js";
 import mongoose from "mongoose";
 
@@ -8,12 +9,20 @@ const CandidateSchema = new mongoose.Schema(
     addressInShort: { type: String, default: "" },
     currentAddress: { type: String, default: "" },
     isVerified: { type: Boolean, default: false },
-    community:{type:String,default:""},
+    community: { type: String, default: "" },
     isPhoneVerified: { type: Boolean, default: false },
     isEmailVerified: { type: Boolean, default: false },
     image: { type: Array, default: [] },
     profileImage: {},
-    images: { type: Array, default: [] },
+    images: [
+      {
+        fileId: String,
+        webViewLink: String,
+        fileName:String,
+        uploadedAt: Date,
+      },
+    ],
+    driveFolderId:{type: String, default:""},
     birthDate: { type: Date, default: null },
     birthTime: { type: String, default: null },
     age: { type: String, default: "" },
@@ -57,14 +66,15 @@ const CandidateSchema = new mongoose.Schema(
     expectedNaadi: { type: Array, default: [] },
     expectedRaas: { type: Array, default: [] },
     expectedHeight: { type: String, default: "" },
-    expectedLocality:{type:Array,default:[]},
+    expectedLocality: { type: Array, default: [] },
     expectedFamilyType: { type: Array, default: [] },
+    savedMe: { type: Array, default: [] },
     expectedSiblingsCousinsUpto: { type: Number },
     profileWithImages: { type: Boolean, default: true },
     strictMatch: { type: Boolean, default: true },
     userPaid: { type: Boolean, default: false },
     readTCP: { type: Boolean, default: true },
-    deactivationReason: { type: String},
+    deactivationReason: { type: String },
   },
   { _id: false }
 );
