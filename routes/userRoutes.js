@@ -1085,7 +1085,7 @@ userRoutes.post(
           message: "success",
           data: "Image uploaded successfully",
           fileId: uploaded.fileId,
-          link: uploaded.webViewLink,
+          link: uploaded.webContentLink,
         });
       }
 

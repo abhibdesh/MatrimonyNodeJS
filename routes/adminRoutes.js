@@ -211,7 +211,7 @@ adminRoutes.get(
   async (req, res) => {
     try {
       if (req.user.__t === "admin" || req.user.__t === "owner") {
-        const user = await Admin.findById(req.user._id);
+        const user = await UserBase.findById(req.user._id);
         return res
           .status(200)
           .json({ message: "success", data: user.communityList });
