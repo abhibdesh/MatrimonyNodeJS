@@ -637,15 +637,12 @@ commonRoutes.get(
         isLoggedIn: 0,
         lastLogoutTime: 0,
         userPassword: 0,
-        _id: 0,
         __v: 0,
         accessToken: 0,
       };
 
       const data = await UserBase.findById(userId, userProjection).lean();
       if (!data) throw new Error("User not found");
-
-      console.log(data);
 
       const finalData = {
         image: data.image || "",
@@ -752,7 +749,8 @@ commonRoutes.get(
       const paymentInfo = await PaymentBase.findOne({
         userEmail: req.user.userEmail,
       }).sort({ createdAt: -1 });
-
+      console.log("paymentInfo")
+      console.log(paymentInfo)
       let emailIdString = "Buy Our Services For Contact Information";
       let contactNumberString = "Buy Our Services For Contact Information";
       let paymentPlan = "None";

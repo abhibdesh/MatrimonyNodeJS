@@ -4,11 +4,6 @@ import authMiddleware from "../middleware/auth.js";
 import mongoose from "mongoose";
 import multer from "multer";
 import { Readable } from "stream";
-import path from 'path';
-import fs from 'fs';
-import fsPromises from 'fs/promises';
-import os from 'os';
-import { v4 as uuidv4 } from 'uuid';
 import updateLastActivity from "../middleware/updateLastActivity.js";
 import Candidate from "../models/User.js";
 import Payment from "../models/Payment.js";
@@ -19,7 +14,6 @@ import emailOTP from "../models/EmailOTPBase.js";
 import phoneOTP from "../models/PhoneOTPBase.js";
 import UserBase from "../models/UserBase.js";
 import { body, validationResult } from "express-validator";
-import { google } from "googleapis";
 
 dotenv.config();
 
@@ -32,96 +26,6 @@ let gfsBucket;
 
 export function setGridFSBucket(bucket) {
   gfsBucket = bucket;
-}
-
-const credentials = JSON.parse(process.env.GOOGLE_API);
-
-const auth = new google.auth.GoogleAuth({
-  credentials,
-  scopes: ["https://www.googleapis.com/auth/drive"],
-});
-
-const drive = google.drive({ version: "v3", auth });
-
-async function uploadImageToDrive(buffer, originalName, mimeType, userId) {
-  const uuser = await Candidate.findById(userId);
-  const tempPath = path.join(os.tmpdir(), originalName);
-
-
-  await fsPromises.writeFile(tempPath, buffer);
-
-  const folderId = await getOrCreateUserFolder(userId);
-
-  const newFileName = `${Date.now()}-${uuidv4()}${path.extname(originalName)}`;
-
-  const fileMetadata = {
-    name: newFileName,
-    parents: [folderId],
-  };
-
-  const media = {
-    mimeType,
-    body: fs.createReadStream(tempPath),
-  };
-
-  const uploadedFile = await drive.files.create({
-    resource: fileMetadata,
-    media,
-    fields: 'id, webViewLink',
-  });
-
-  await drive.permissions.create({
-    fileId: uploadedFile.data.id,
-    requestBody: {
-      role: 'reader',
-      type: 'anyone',
-    },
-  });
-
-  await fsPromises.unlink(tempPath);
-
-  uuser.images.push({
-    fileId: uploadedFile.data.id,
-    fileName: newFileName,
-    webViewLink: uploadedFile.data.webViewLink,
-    uploadedAt:new Date()
-  })
-  await uuser.save();
-
-  return {
-    fileId: uploadedFile.data.id,
-    fileName: newFileName,
-    webViewLink: uploadedFile.data.webViewLink,
-  };
-}
-
-async function getOrCreateUserFolder(userId) {
-  // Check if folder exists
-  const FolderCreated = await Candidate.findById(userId);
-  if(FolderCreated.driveFolderId !== ""){
-    return FolderCreated.driveFolderId
-  }
-  else
-  {
-    const fileMetadata = {
-      name: userId,
-      mimeType: 'application/vnd.google-apps.folder',
-      parents: [process.env.GOOGLE_DRIVE_FOLDER_ID],
-    };
-  
-    const folder = await drive.files.create({
-      resource: fileMetadata,
-      fields: 'id',
-    });
-    
-    console.log(folder.data.id)
-    await Candidate.findByIdAndUpdate(userId,{
-      $set:{
-        driveFolderId: folder.data.id
-      }
-    })
-    return folder.data.id;
-  }  
 }
 
 
@@ -916,47 +820,6 @@ userRoutes.post(
   }
 );
 
-// userRoutes.get(
-//   "/get-images",
-//   authMiddleware,
-//   updateLastActivity,
-//   async (req, res) => {
-//     try {
-//       const userId = req.user._id;
-//       // 1. Get all files uploaded by this user
-//       const files = await mongoose.connection.db
-//         .collection("fs.files")
-//         .find({ "metadata.uploadedBy": userId })
-//         .toArray();
-
-//       // 2. For each file, fetch its chunks
-//       const media = await Promise.all(
-//         files.map(async (file) => {
-//           const chunks = await mongoose.connection.db
-//             .collection("fs.chunks")
-//             .find({ files_id: file._id })
-//             .sort({ n: 1 })
-//             .project({ data: 1 })
-//             .toArray();
-
-//           return {
-//             fileId: file._id,
-//             filename: file.filename,
-//             contentType: file.contentType,
-//             length: file.length,
-//             chunks: chunks.map((c) => c.data),
-//           };
-//         })
-//       );
-
-//       res.status(200).json({ media });
-//     } catch (error) {
-//       console.log(error);
-//       res.json({ message: "failure" });
-//     }
-//   }
-// );
-
 userRoutes.get(
   "/get-images",
   authMiddleware,
@@ -964,34 +827,33 @@ userRoutes.get(
   async (req, res) => {
     try {
       const userId = req.user._id;
-      const user = await Candidate.findById(userId)
       // 1. Get all files uploaded by this user
-      // const files = await mongoose.connection.db
-      //   .collection("fs.files")
-      //   .find({ "metadata.uploadedBy": userId })
-      //   .toArray();
+      const files = await mongoose.connection.db
+        .collection("fs.files")
+        .find({ "metadata.uploadedBy": userId })
+        .toArray();
 
-      // // 2. For each file, fetch its chunks
-      // const media = await Promise.all(
-      //   files.map(async (file) => {
-      //     const chunks = await mongoose.connection.db
-      //       .collection("fs.chunks")
-      //       .find({ files_id: file._id })
-      //       .sort({ n: 1 })
-      //       .project({ data: 1 })
-      //       .toArray();
+      // 2. For each file, fetch its chunks
+      const media = await Promise.all(
+        files.map(async (file) => {
+          const chunks = await mongoose.connection.db
+            .collection("fs.chunks")
+            .find({ files_id: file._id })
+            .sort({ n: 1 })
+            .project({ data: 1 })
+            .toArray();
 
-      //     return {
-      //       fileId: file._id,
-      //       filename: file.filename,
-      //       contentType: file.contentType,
-      //       length: file.length,
-      //       chunks: chunks.map((c) => c.data),
-      //     };
-      //   })
-      // );
+          return {
+            fileId: file._id,
+            filename: file.filename,
+            contentType: file.contentType,
+            length: file.length,
+            chunks: chunks.map((c) => c.data),
+          };
+        })
+      );
 
-      res.status(200).json({message:"success",data:user.images});
+      res.status(200).json({ media });
     } catch (error) {
       console.log(error);
       res.json({ message: "failure" });
@@ -999,100 +861,62 @@ userRoutes.get(
   }
 );
 
-// userRoutes.post(
-//   "/upload-image",
-//   authMiddleware,
-//   updateLastActivity,
-//   upload.single("file"),
-//   async (req, res) => {
-//     try {
-//       if (!req.file) {
-//         return res.status(400).json({ message: "No file uploaded" });
-//       }
-
-//       const userId = req.user._id;
-//       const user = await Candidate.findById(userId);
-//       if (!user) {
-//         return res.status(404).json({ message: "User not found" });
-//       }
-
-//       if (user.images.length >= 3) {
-//         return res.status(400).json({
-//           message: "failure",
-//           data: "Only three images are allowed. Kindly delete existing image/images to upload new.",
-//         });
-//       }
-
-//       const { buffer, originalname, mimetype } = req.file;
-//       const fileStream = new Readable();
-//       fileStream.push(buffer);
-//       fileStream.push(null);
-
-//       const uploadStream = gfsBucket.openUploadStream(originalname, {
-//         contentType: mimetype,
-//         metadata: {
-//           uploadedBy: userId,
-//           uploadedAt: new Date(),
-//         },
-//       });
-
-//       fileStream
-//         .pipe(uploadStream)
-//         .on("error", (error) => {
-//           console.error(error);
-//           res.status(500).json({ message: "failure", data: error.message });
-//         })
-//         .on("finish", async () => {
-//           user.images.push(uploadStream.id);
-//           await user.save();
-//           res.status(200).json({
-//             message: "success",
-//             fileId: uploadStream.id,
-//             data: "Image uploaded successfully",
-//           });
-//         });
-//     } catch (error) {
-//       console.error(error);
-//       res.status(500).json({ message: "failure", data: error.message });
-//     }
-//   }
-// );
-
-
 
 userRoutes.post(
-  '/upload-image',
+  "/upload-image",
   authMiddleware,
-  upload.single('file'),
+  updateLastActivity,
+  upload.single("file"),
   async (req, res) => {
     try {
       if (!req.file) {
-        return res.status(400).json({ message: 'No file uploaded' });
+        return res.status(400).json({ message: "No file uploaded" });
       }
+
       const userId = req.user._id;
-      const { buffer, originalname, mimetype } = req.file;
-
       const user = await Candidate.findById(userId);
-      if(user.images.length > 3){
-        res.status(200).json({
-          message: "success",
-          data: "You can upload maximum 3 images."
-        });
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
       }
-      else{
-        const uploaded = await uploadImageToDrive(buffer, originalname, mimetype, userId);    
-        res.status(200).json({
-          message: "success",
-          data: "Image uploaded successfully",
-          fileId: uploaded.fileId,
-          link: uploaded.webContentLink,
+
+      if (user.images.length >= 3) {
+        return res.status(400).json({
+          message: "failure",
+          data: "Only three images are allowed. Kindly delete existing image/images to upload new.",
         });
       }
 
-      
+      const { buffer, originalname, mimetype } = req.file;
+      const fileStream = new Readable();
+      fileStream.push(buffer);
+      fileStream.push(null);
+
+      const uploadStream = gfsBucket.openUploadStream(originalname, {
+        contentType: mimetype,
+        metadata: {
+          uploadedBy: userId,
+          uploadedAt: new Date(),
+        },
+      });
+
+      fileStream
+        .pipe(uploadStream)
+        .on("error", (error) => {
+          console.error(error);
+          res.status(500).json({ message: "failure", data: error.message });
+        })
+        .on("finish", async () => {
+          user.images.push(uploadStream.id);
+          await user.save();
+          res.status(200).json({
+            message: "success",
+            fileId: uploadStream.id,
+            data: "Image uploaded successfully",
+          });
+        });
     } catch (error) {
       console.error(error);
-      res.status(500).json({ message: 'Upload failed', error: error.message });
+      res.status(500).json({ message: "failure", data: error.message });
     }
   }
 );
