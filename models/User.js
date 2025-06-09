@@ -14,15 +14,12 @@ const CandidateSchema = new mongoose.Schema(
     isEmailVerified: { type: Boolean, default: false },
     image: { type: Array, default: [] },
     profileImage: {},
-    images: [
-      {
-        fileId: String,
-        webViewLink: String,
-        fileName:String,
-        uploadedAt: Date,
-      },
+    images: [{
+      url: { type: String, required: true },
+      createdAt: { type: Date, default: Date.now }
+    }
     ],
-    driveFolderId:{type: String, default:""},
+    driveFolderId: { type: String, default: "" },
     birthDate: { type: Date, default: null },
     birthTime: { type: String, default: null },
     age: { type: String, default: "" },

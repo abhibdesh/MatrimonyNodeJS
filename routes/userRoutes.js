@@ -4,6 +4,7 @@ import authMiddleware from "../middleware/auth.js";
 import mongoose from "mongoose";
 import multer from "multer";
 import { Readable } from "stream";
+import { v2 as cloudinary } from 'cloudinary';
 import updateLastActivity from "../middleware/updateLastActivity.js";
 import Candidate from "../models/User.js";
 import Payment from "../models/Payment.js";
@@ -28,6 +29,11 @@ export function setGridFSBucket(bucket) {
   gfsBucket = bucket;
 }
 
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 const otpCache = {};
 const WINDOW_SECONDS = 60 * 60; // 1 hour
@@ -75,14 +81,14 @@ function mapUsers(users, files, fileChunksMap) {
 
     const media = file
       ? [
-          {
-            fileId: file._id.toString(),
-            filename: file.filename || "",
-            contentType: file.contentType || "image/jpeg",
-            length: file.length,
-            chunks: fileChunksMap[file._id.toString()] || [],
-          },
-        ]
+        {
+          fileId: file._id.toString(),
+          filename: file.filename || "",
+          contentType: file.contentType || "image/jpeg",
+          length: file.length,
+          chunks: fileChunksMap[file._id.toString()] || [],
+        },
+      ]
       : [];
 
     return {
@@ -820,6 +826,47 @@ userRoutes.post(
   }
 );
 
+// userRoutes.get(
+//   "/get-images",
+//   authMiddleware,
+//   updateLastActivity,
+//   async (req, res) => {
+//     try {
+//       const userId = req.user._id;
+//       // 1. Get all files uploaded by this user
+//       const files = await mongoose.connection.db
+//         .collection("fs.files")
+//         .find({ "metadata.uploadedBy": userId })
+//         .toArray();
+
+//       // 2. For each file, fetch its chunks
+//       const media = await Promise.all(
+//         files.map(async (file) => {
+//           const chunks = await mongoose.connection.db
+//             .collection("fs.chunks")
+//             .find({ files_id: file._id })
+//             .sort({ n: 1 })
+//             .project({ data: 1 })
+//             .toArray();
+
+//           return {
+//             fileId: file._id,
+//             filename: file.filename,
+//             contentType: file.contentType,
+//             length: file.length,
+//             chunks: chunks.map((c) => c.data),
+//           };
+//         })
+//       );
+
+//       res.status(200).json({ media });
+//     } catch (error) {
+//       console.log(error);
+//       res.json({ message: "failure" });
+//     }
+//   }
+// );
+
 userRoutes.get(
   "/get-images",
   authMiddleware,
@@ -828,30 +875,7 @@ userRoutes.get(
     try {
       const userId = req.user._id;
       // 1. Get all files uploaded by this user
-      const files = await mongoose.connection.db
-        .collection("fs.files")
-        .find({ "metadata.uploadedBy": userId })
-        .toArray();
-
-      // 2. For each file, fetch its chunks
-      const media = await Promise.all(
-        files.map(async (file) => {
-          const chunks = await mongoose.connection.db
-            .collection("fs.chunks")
-            .find({ files_id: file._id })
-            .sort({ n: 1 })
-            .project({ data: 1 })
-            .toArray();
-
-          return {
-            fileId: file._id,
-            filename: file.filename,
-            contentType: file.contentType,
-            length: file.length,
-            chunks: chunks.map((c) => c.data),
-          };
-        })
-      );
+      const media = await Candidate.findById(userId,{images:1})
 
       res.status(200).json({ media });
     } catch (error) {
@@ -862,6 +886,86 @@ userRoutes.get(
 );
 
 
+// userRoutes.post(
+//   "/upload-image",
+//   authMiddleware,
+//   updateLastActivity,
+//   upload.single("file"),
+//   async (req, res) => {
+//     try {
+//       if (!req.file) {
+//         return res.status(400).json({ message: "No file uploaded" });
+//       }
+
+//       const userId = req.user._id;
+//       const user = await Candidate.findById(userId);
+//       if (!user) {
+//         return res.status(404).json({ message: "User not found" });
+//       }
+
+//       if (user.images.length >= 3) {
+//         return res.status(400).json({
+//           message: "failure",
+//           data: "Only three images are allowed. Kindly delete existing image/images to upload new.",
+//         });
+//       }
+
+//       const { buffer, originalname, mimetype } = req.file;
+//       const fileStream = new Readable();
+//       fileStream.push(buffer);
+//       fileStream.push(null);
+
+//       const uploadStream = gfsBucket.openUploadStream(originalname, {
+//         contentType: mimetype,
+//         metadata: {
+//           uploadedBy: userId,
+//           uploadedAt: new Date(),
+//         },
+//       });
+
+//       fileStream
+//         .pipe(uploadStream)
+//         .on("error", (error) => {
+//           console.error(error);
+//           res.status(500).json({ message: "failure", data: error.message });
+//         })
+//         .on("finish", async () => {
+//           user.images.push(uploadStream.id);
+//           await user.save();
+//           res.status(200).json({
+//             message: "success",
+//             fileId: uploadStream.id,
+//             data: "Image uploaded successfully",
+//           });
+//         });
+//     } catch (error) {
+//       console.error(error);
+//       res.status(500).json({ message: "failure", data: error.message });
+//     }
+//   }
+// );
+
+// Cloudinary Upload via Stream
+const uploadToCloudinary = (buffer) => {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: 'matrimony_images' },
+      (error, result) => {
+        if (error) return reject(error);
+        resolve(result);
+      }
+    );
+    const readable = new Readable({
+      read() {
+        this.push(buffer);
+        this.push(null);
+      }
+    });
+    readable.pipe(stream);
+  });
+};
+
+
 userRoutes.post(
   "/upload-image",
   authMiddleware,
@@ -869,57 +973,45 @@ userRoutes.post(
   upload.single("file"),
   async (req, res) => {
     try {
-      if (!req.file) {
-        return res.status(400).json({ message: "No file uploaded" });
+      if (!req.file) return res.status(400).json({ error: 'Image file is required' });
+      const candidate = await Candidate.findById(req.user._id)
+      if (candidate.images.length >= 3) {
+        return res.status(400).json({ error: 'Max 3 images allowed' });
       }
+      // Upload to Cloudinary
+      const result = await uploadToCloudinary(req.file.buffer);
 
-      const userId = req.user._id;
-      const user = await Candidate.findById(userId);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-
-      if (user.images.length >= 3) {
-        return res.status(400).json({
-          message: "failure",
-          data: "Only three images are allowed. Kindly delete existing image/images to upload new.",
-        });
-      }
-
-      const { buffer, originalname, mimetype } = req.file;
-      const fileStream = new Readable();
-      fileStream.push(buffer);
-      fileStream.push(null);
-
-      const uploadStream = gfsBucket.openUploadStream(originalname, {
-        contentType: mimetype,
-        metadata: {
-          uploadedBy: userId,
-          uploadedAt: new Date(),
+      // Update the candidate's images array
+      const updatedCandidate = await Candidate.findByIdAndUpdate(
+        req.user._id, // Or get userId from req.params.userId or body
+        {
+          $push: {
+            images: {
+              url: result.secure_url,
+              createdAt: new Date()
+            }
+          }
         },
-      });
+        { new: true }
+      );
 
-      fileStream
-        .pipe(uploadStream)
-        .on("error", (error) => {
-          console.error(error);
-          res.status(500).json({ message: "failure", data: error.message });
-        })
-        .on("finish", async () => {
-          user.images.push(uploadStream.id);
-          await user.save();
-          res.status(200).json({
-            message: "success",
-            fileId: uploadStream.id,
-            data: "Image uploaded successfully",
-          });
-        });
+      if (!updatedCandidate) {
+        return res.status(404).json({ error: 'Candidate not found' });
+      }
+
+      res.status(200).json({
+        message: 'success',
+        data:"Image Uploaded Successfully!",
+        url: result.secure_url,
+        images: updatedCandidate.images,
+      });
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: "failure", data: error.message });
     }
   }
 );
+
 
 userRoutes.post(
   "/set-profile-image",
