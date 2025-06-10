@@ -16,6 +16,10 @@ const CandidateSchema = new mongoose.Schema(
     profileImage: {},
     images: [{
       url: { type: String, required: true },
+      public_id:{type: String, required: true},
+      signature:{type: String, required: true},
+      resource_type:{type: String, required: true},
+      format:{type: String, required: true},
       createdAt: { type: Date, default: Date.now }
     }
     ],

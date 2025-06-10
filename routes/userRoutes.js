@@ -528,7 +528,6 @@ userRoutes.post(
           rowsPerPage
         );
 
-      
         const finalDataList = mapUsers(users);
 
         res.json({
@@ -954,18 +953,22 @@ userRoutes.post(
         return res.status(400).json({ error: "Image file is required" });
       const candidate = await Candidate.findById(req.user._id);
       if (candidate.images.length >= 3) {
-        return res.status(400).json({ error: "Max 3 images allowed" });
+        return res
+          .status(200)
+          .json({ message: "success", data: "Max 3 images allowed" });
       }
       // Upload to Cloudinary
       const result = await uploadToCloudinary(req.file.buffer);
-
-      // Update the candidate's images array
       const updatedCandidate = await Candidate.findByIdAndUpdate(
-        req.user._id, // Or get userId from req.params.userId or body
+        req.user._id, 
         {
           $push: {
             images: {
               url: result.secure_url,
+              public_id: result.public_id,
+              signature: result.signature,
+              resource_type: result.resource_type,
+              format: result.format,
               createdAt: new Date(),
             },
           },
@@ -1018,7 +1021,7 @@ userRoutes.post(
   async (req, res) => {
     try {
       const { imageId } = req.body;
-
+      console.log(imageId);
       if (!imageId) {
         return res.status(400).json({
           message: "failure",
@@ -1026,10 +1029,8 @@ userRoutes.post(
         });
       }
 
-      // Convert string ID to ObjectId
-      const fileObjectId = new mongoose.Types.ObjectId(imageId);
+      await cloudinary.uploader.destroy(imageId);
 
-      // Remove file reference from user profile
       await Candidate.findByIdAndUpdate(req.user._id, {
         $pull: { images: imageId }, // use correct array field name
       });
@@ -1055,14 +1056,14 @@ userRoutes.get(
     try {
       const user = await UserBase.findById(req.user._id);
       let userImage = user.image;
-      console.log("user.image")
-      console.log(userImage)
-      if(userImage === undefined){
-        userImage = ""
+      console.log("user.image");
+      console.log(userImage);
+      if (userImage === undefined) {
+        userImage = "";
       }
       return res.status(200).json({
         message: "success",
-        media:userImage,
+        media: userImage,
       });
     } catch (error) {
       console.error(error);
@@ -1320,17 +1321,17 @@ userRoutes.post("/reset-images", authMiddleware, async (req, res) => {
   try {
     if (req.user.__t !== "owner") {
     } else {
-      console.log("Daattaa")
+      console.log("Daattaa");
       await Candidate.updateMany(
         {},
         {
           $set: {
             image: "",
+            images: [],
           },
         }
       );
-            console.log("Daattaa2")
-
+      console.log("Daattaa2");
     }
   } catch (error) {
     console.log(error);
