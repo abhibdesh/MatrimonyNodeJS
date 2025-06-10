@@ -395,36 +395,9 @@ commonRoutes.get(
         userPassword: 0,
         accessToken: 0,
       });
-      const files = user.image || [];
-      const media = await Promise.all(
-        files.map(async (fileId) => {
-          const chunks = await mongoose.connection.db
-            .collection("fs.chunks")
-            .find({ files_id: new mongoose.Types.ObjectId(fileId) })
-            .sort({ n: 1 })
-            .project({ data: 1 })
-            .toArray();
-
-          const joined = chunks.map((c) => c.data.toString("base64")).join("");
-
-          const fileDoc = await mongoose.connection.db
-            .collection("fs.files")
-            .findOne({ _id: new mongoose.Types.ObjectId(fileId) });
-
-          return {
-            fileId,
-            filename: fileDoc.filename,
-            contentType: fileDoc.contentType,
-            length: fileDoc.length,
-            base64: joined,
-          };
-        })
-      );
-
       return res.status(200).json({
         message: "success",
         data: user,
-        media: media,
         percent: await calculateProfileCompletion(req.user._id),
       });
     } catch (error) {
