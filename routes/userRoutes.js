@@ -960,7 +960,7 @@ userRoutes.post(
       // Upload to Cloudinary
       const result = await uploadToCloudinary(req.file.buffer);
       const updatedCandidate = await Candidate.findByIdAndUpdate(
-        req.user._id, 
+        req.user._id,
         {
           $push: {
             images: {
@@ -1029,10 +1029,11 @@ userRoutes.post(
         });
       }
 
+      const image = Candidate.findOne({ _id: req.user._id });
       await cloudinary.uploader.destroy(imageId);
 
       await Candidate.findByIdAndUpdate(req.user._id, {
-        $pull: { images: imageId }, // use correct array field name
+        $pull: { images: { public_id: imageId } },
       });
 
       return res.status(200).json({
