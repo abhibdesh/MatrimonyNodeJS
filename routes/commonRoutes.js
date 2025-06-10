@@ -135,25 +135,8 @@ function applyFilters(query, filters = {}, currentUser = {}) {
   }
 }
 
-function mapUsers(users, files, fileChunksMap) {
+function mapUsers(users) {
   return users.map((u) => {
-    const fileId = u.image?.[0];
-    const file = files.find((f) =>
-      f._id.equals(new mongoose.Types.ObjectId(fileId))
-    );
-
-    const media = file
-      ? [
-          {
-            fileId: file._id.toString(),
-            filename: file.filename || "",
-            contentType: file.contentType || "image/jpeg",
-            length: file.length,
-            chunks: fileChunksMap[file._id.toString()] || [],
-          },
-        ]
-      : [];
-
     return {
       topData: {
         name: `${u.firstName} ${u.lastName}`,
@@ -165,7 +148,7 @@ function mapUsers(users, files, fileChunksMap) {
             : "NA",
         _id: u._id,
         isVerified: u.isVerified,
-        profileImage: media,
+        profileImage: u.image,
         birthDate: u.birthDate,
         birthTime: u.birthTime,
         birthPlace: u.birthPlace,
@@ -379,13 +362,14 @@ commonRoutes.post(
         rowsPerPage
       );
 
-      const imageIds = users
-        .map((u) => u.image?.[0])
-        .filter(Boolean)
-        .map((id) => new mongoose.Types.ObjectId(id));
-      const { files, fileChunksMap } = await fetchUserImages(imageIds);
-      const finalDataList = mapUsers(users, files, fileChunksMap);
+      // const imageIds = users
+      //   .map((u) => u.image?.[0])
+      //   .filter(Boolean)
+      //   .map((id) => new mongoose.Types.ObjectId(id));
+      // const { files, fileChunksMap } = await fetchUserImages(imageIds);
+      const finalDataList = mapUsers(users);
 
+      console.log(users)
       res.json({
         message: "Success",
         users: finalDataList,
@@ -476,7 +460,7 @@ commonRoutes.get(
       }
 
       const finalData = {
-        image: user.image || "",
+        image: user.images,
         name: `${user.firstName} ${user.lastName}`,
         isAlreadyAdded: false,
         paymentplan: "None",
@@ -575,35 +559,36 @@ commonRoutes.get(
         isVerified: user.isVerified,
       });
       // 1. Get all files uploaded by this user
-      const files = await mongoose.connection.db
-        .collection("fs.files")
-        .find({ "metadata.uploadedBy": userId })
-        .toArray();
+      // const files = await mongoose.connection.db
+      //   .collection("fs.files")
+      //   .find({ "metadata.uploadedBy": userId })
+      //   .toArray();
 
-      // 2. For each file, fetch its chunks
-      const media = await Promise.all(
-        files.map(async (file) => {
-          const chunks = await mongoose.connection.db
-            .collection("fs.chunks")
-            .find({ files_id: file._id })
-            .sort({ n: 1 })
-            .project({ data: 1 })
-            .toArray();
-          const joined = chunks.map((c) => c.data.toString("base64")).join("");
+      // // 2. For each file, fetch its chunks
+      // const media = await Promise.all(
+      //   files.map(async (file) => {
+      //     const chunks = await mongoose.connection.db
+      //       .collection("fs.chunks")
+      //       .find({ files_id: file._id })
+      //       .sort({ n: 1 })
+      //       .project({ data: 1 })
+      //       .toArray();
+      //     const joined = chunks.map((c) => c.data.toString("base64")).join("");
 
-          return {
-            fileId: file._id,
-            filename: file.filename,
-            contentType: file.contentType,
-            length: file.length,
-            base64: joined,
-          };
-        })
-      );
+      //     return {
+      //       fileId: file._id,
+      //       filename: file.filename,
+      //       contentType: file.contentType,
+      //       length: file.length,
+      //       base64: joined,
+      //     };
+      //   })
+      // );
+      console.log("finalData")
+      console.log(finalData)
       return res.status(200).json({
         message: "success",
         data: finalData,
-        media,
         userRole: req.user.__t,
       });
     } catch (error) {
@@ -645,7 +630,7 @@ commonRoutes.get(
       if (!data) throw new Error("User not found");
 
       const finalData = {
-        image: data.image || "",
+        image: data.images,
         name: `${data.firstName} ${data.lastName}`,
         isAlreadyAdded: false,
         jobBusiness: data.jobBusiness || "Not Provided",
@@ -806,35 +791,35 @@ commonRoutes.get(
       } else {
         finalData.referenceName = "NA";
       }
-      const files = await mongoose.connection.db
-        .collection("fs.files")
-        .find({ "metadata.uploadedBy": userId })
-        .toArray();
+      // const files = await mongoose.connection.db
+      //   .collection("fs.files")
+      //   .find({ "metadata.uploadedBy": userId })
+      //   .toArray();
 
-      // 2. For each file, fetch its chunks
-      const media = await Promise.all(
-        files.map(async (file) => {
-          const chunks = await mongoose.connection.db
-            .collection("fs.chunks")
-            .find({ files_id: file._id })
-            .sort({ n: 1 })
-            .project({ data: 1 })
-            .toArray();
-          const joined = chunks.map((c) => c.data.toString("base64")).join("");
+      // // 2. For each file, fetch its chunks
+      // const media = await Promise.all(
+      //   files.map(async (file) => {
+      //     const chunks = await mongoose.connection.db
+      //       .collection("fs.chunks")
+      //       .find({ files_id: file._id })
+      //       .sort({ n: 1 })
+      //       .project({ data: 1 })
+      //       .toArray();
+      //     const joined = chunks.map((c) => c.data.toString("base64")).join("");
 
-          return {
-            fileId: file._id,
-            filename: file.filename,
-            contentType: file.contentType,
-            length: file.length,
-            base64: joined,
-          };
-        })
-      );
+      //     return {
+      //       fileId: file._id,
+      //       filename: file.filename,
+      //       contentType: file.contentType,
+      //       length: file.length,
+      //       base64: joined,
+      //     };
+      //   })
+      // );
 
       return res
         .status(200)
-        .json({ message: "success", data: finalData, media });
+        .json({ message: "success", data: finalData });
     } catch (error) {
       console.error(error);
       return res.status(500).json({ message: "failure", data: error.message });

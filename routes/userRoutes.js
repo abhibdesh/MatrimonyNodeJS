@@ -4,7 +4,7 @@ import authMiddleware from "../middleware/auth.js";
 import mongoose from "mongoose";
 import multer from "multer";
 import { Readable } from "stream";
-import { v2 as cloudinary } from 'cloudinary';
+import { v2 as cloudinary } from "cloudinary";
 import updateLastActivity from "../middleware/updateLastActivity.js";
 import Candidate from "../models/User.js";
 import Payment from "../models/Payment.js";
@@ -72,25 +72,8 @@ async function fetchUserImages(imageIds) {
   return { files, fileChunksMap };
 }
 
-function mapUsers(users, files, fileChunksMap) {
+function mapUsers(users) {
   return users.map((u) => {
-    const fileId = u.image?.[0];
-    const file = files.find((f) =>
-      f._id.equals(new mongoose.Types.ObjectId(fileId))
-    );
-
-    const media = file
-      ? [
-        {
-          fileId: file._id.toString(),
-          filename: file.filename || "",
-          contentType: file.contentType || "image/jpeg",
-          length: file.length,
-          chunks: fileChunksMap[file._id.toString()] || [],
-        },
-      ]
-      : [];
-
     return {
       topData: {
         name: `${u.firstName} ${u.lastName}`,
@@ -102,7 +85,7 @@ function mapUsers(users, files, fileChunksMap) {
             : "NA",
         _id: u._id,
         isVerified: u.isVerified,
-        profileImage: media,
+        profileImage: u.image,
         birthDate: u.birthDate,
         birthTime: u.birthTime,
         birthPlace: u.birthPlace,
@@ -545,12 +528,8 @@ userRoutes.post(
           rowsPerPage
         );
 
-        const imageIds = users
-          .map((u) => u.image?.[0])
-          .filter(Boolean)
-          .map((id) => new mongoose.Types.ObjectId(id));
-        const { files, fileChunksMap } = await fetchUserImages(imageIds);
-        const finalDataList = mapUsers(users, files, fileChunksMap);
+      
+        const finalDataList = mapUsers(users);
 
         res.json({
           message: "Success",
@@ -875,7 +854,7 @@ userRoutes.get(
     try {
       const userId = req.user._id;
       // 1. Get all files uploaded by this user
-      const media = await Candidate.findById(userId,{images:1})
+      const media = await Candidate.findById(userId, { images: 1 });
 
       res.status(200).json({ media });
     } catch (error) {
@@ -884,7 +863,6 @@ userRoutes.get(
     }
   }
 );
-
 
 // userRoutes.post(
 //   "/upload-image",
@@ -949,7 +927,7 @@ userRoutes.get(
 const uploadToCloudinary = (buffer) => {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { folder: 'matrimony_images' },
+      { folder: "matrimony_images" },
       (error, result) => {
         if (error) return reject(error);
         resolve(result);
@@ -959,12 +937,11 @@ const uploadToCloudinary = (buffer) => {
       read() {
         this.push(buffer);
         this.push(null);
-      }
+      },
     });
     readable.pipe(stream);
   });
 };
-
 
 userRoutes.post(
   "/upload-image",
@@ -973,10 +950,11 @@ userRoutes.post(
   upload.single("file"),
   async (req, res) => {
     try {
-      if (!req.file) return res.status(400).json({ error: 'Image file is required' });
-      const candidate = await Candidate.findById(req.user._id)
+      if (!req.file)
+        return res.status(400).json({ error: "Image file is required" });
+      const candidate = await Candidate.findById(req.user._id);
       if (candidate.images.length >= 3) {
-        return res.status(400).json({ error: 'Max 3 images allowed' });
+        return res.status(400).json({ error: "Max 3 images allowed" });
       }
       // Upload to Cloudinary
       const result = await uploadToCloudinary(req.file.buffer);
@@ -988,20 +966,20 @@ userRoutes.post(
           $push: {
             images: {
               url: result.secure_url,
-              createdAt: new Date()
-            }
-          }
+              createdAt: new Date(),
+            },
+          },
         },
         { new: true }
       );
 
       if (!updatedCandidate) {
-        return res.status(404).json({ error: 'Candidate not found' });
+        return res.status(404).json({ error: "Candidate not found" });
       }
 
       res.status(200).json({
-        message: 'success',
-        data:"Image Uploaded Successfully!",
+        message: "success",
+        data: "Image Uploaded Successfully!",
         url: result.secure_url,
         images: updatedCandidate.images,
       });
@@ -1012,7 +990,6 @@ userRoutes.post(
   }
 );
 
-
 userRoutes.post(
   "/set-profile-image",
   authMiddleware,
@@ -1020,9 +997,8 @@ userRoutes.post(
   async (req, res) => {
     try {
       const { imageId } = req.body;
-      await Candidate.findByIdAndUpdate(req.user._id, { $set: { image: [] } });
       await Candidate.findByIdAndUpdate(req.user._id, {
-        $set: { image: [imageId] },
+        $set: { image: imageId },
       });
       return res.status(200).json({
         message: "success",
@@ -1055,26 +1031,11 @@ userRoutes.post(
 
       // Remove file reference from user profile
       await Candidate.findByIdAndUpdate(req.user._id, {
-        $pull: { image: imageId }, // use correct array field name
-      });
-
-      // Delete file from GridFS
-      const db = mongoose.connection.db;
-
-      const fileDeleteResult = await db.collection("fs.files").deleteOne({
-        _id: fileObjectId,
-      });
-
-      const chunkDeleteResult = await db.collection("fs.chunks").deleteMany({
-        files_id: fileObjectId,
+        $pull: { images: imageId }, // use correct array field name
       });
 
       return res.status(200).json({
         message: "success",
-        data: {
-          fileDeleted: fileDeleteResult.deletedCount,
-          chunksDeleted: chunkDeleteResult.deletedCount,
-        },
       });
     } catch (error) {
       console.error(error);
@@ -1093,34 +1054,15 @@ userRoutes.get(
   async (req, res) => {
     try {
       const user = await UserBase.findById(req.user._id);
-      const files = user.image || [];
-      const media = await Promise.all(
-        files.map(async (fileId) => {
-          const chunks = await mongoose.connection.db
-            .collection("fs.chunks")
-            .find({ files_id: new mongoose.Types.ObjectId(fileId) })
-            .sort({ n: 1 })
-            .project({ data: 1 })
-            .toArray();
-
-          const joined = chunks.map((c) => c.data.toString("base64")).join("");
-
-          const fileDoc = await mongoose.connection.db
-            .collection("fs.files")
-            .findOne({ _id: new mongoose.Types.ObjectId(fileId) });
-
-          return {
-            fileId,
-            filename: fileDoc.filename,
-            contentType: fileDoc.contentType,
-            length: fileDoc.length,
-            base64: joined,
-          };
-        })
-      );
+      let userImage = user.image;
+      console.log("user.image")
+      console.log(userImage)
+      if(userImage === undefined){
+        userImage = ""
+      }
       return res.status(200).json({
         message: "success",
-        media: media,
+        media:userImage,
       });
     } catch (error) {
       console.error(error);
@@ -1373,5 +1315,26 @@ userRoutes.get(
 
 //   return { files, fileChunksMap };
 // }
+
+userRoutes.post("/reset-images", authMiddleware, async (req, res) => {
+  try {
+    if (req.user.__t !== "owner") {
+    } else {
+      console.log("Daattaa")
+      await Candidate.updateMany(
+        {},
+        {
+          $set: {
+            image: "",
+          },
+        }
+      );
+            console.log("Daattaa2")
+
+    }
+  } catch (error) {
+    console.log(error);
+  }
+});
 
 export default userRoutes;

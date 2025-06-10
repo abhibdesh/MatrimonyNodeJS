@@ -12,7 +12,7 @@ const CandidateSchema = new mongoose.Schema(
     community: { type: String, default: "" },
     isPhoneVerified: { type: Boolean, default: false },
     isEmailVerified: { type: Boolean, default: false },
-    image: { type: Array, default: [] },
+    image: { type: String, default: "" },
     profileImage: {},
     images: [{
       url: { type: String, required: true },
