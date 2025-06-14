@@ -40,7 +40,7 @@ ownerRoutes.post(
           .replace(/0/g, "X")
           .replace(/O/g, "Q")
           .replace(/l/g, "X");
-        console.log(finalAdminCode);        
+        console.log(finalAdminCode);
         await Admin.create({
           firstName: firstName,
           lastName: lastName,
@@ -221,9 +221,28 @@ ownerRoutes.post(
         const { transaction } = req.body;
         const localTimezone = "Asia/Kolkata"; // or your preferred TZ
         const atm = moment().tz(localTimezone);
+        let validTill;
+        const payment = await Payment.findById(transaction);
+        if (payment.planDuration === "1") {
+          validTill = atm.clone().add(1, "months");
+        }
+        if (payment.planDuration === "3") {
+          validTill = atm.clone().add(3, "months");
+        }
+        if (payment.planDuration === "6") {
+          validTill = atm.clone().add(6, "months");
+        }
+        if (payment.planDuration === "9") {
+          validTill = atm.clone().add(9, "months");
+        }
+
+        if (payment.planDuration === "1Y") {
+            validTill = atm.clone().add(12, "months");
+        }
         await Payment.findByIdAndUpdate(transaction, {
           isApproved: true,
           approvalTimestamp: atm,
+          validTill:validTill
         });
         return res
           .status(200)

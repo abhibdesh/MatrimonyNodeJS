@@ -26,11 +26,9 @@ paymentRoutes.post(
         const endOfDay = moment(today).endOf("day").toDate();
         const atm = moment().tz(localTimezone);
         let amountPaid;
-        let validTill;
         let countOfProfiles;
   
         if (planDuration === "1") {
-          validTill = atm.clone().add(1, "months");
           if (profileCount === "10") {
             amountPaid = 499;
             countOfProfiles = 10;
@@ -49,7 +47,6 @@ paymentRoutes.post(
           }
         }
         if (planDuration === "3") {
-          validTill = atm.clone().add(3, "months");
           if (profileCount === "10") {
             amountPaid = 899;
             countOfProfiles = 30;
@@ -68,7 +65,6 @@ paymentRoutes.post(
           }
         }
         if (planDuration === "6") {
-          validTill = atm.clone().add(6, "months");
           if (profileCount === "10") {
             amountPaid = 1299;
             countOfProfiles = 10;
@@ -87,7 +83,6 @@ paymentRoutes.post(
           }
         }
         if (planDuration === "9") {
-          validTill = atm.clone().add(9, "months");
           if (profileCount === "10") {
             amountPaid = 1299;
             countOfProfiles = 10;
@@ -108,7 +103,6 @@ paymentRoutes.post(
   
         if (planDuration === "1Y") {
           {
-            validTill = atm.clone().add(12, "months");
             amountPaid = 4999;
             countOfProfiles = 0;
           }
@@ -146,7 +140,6 @@ paymentRoutes.post(
             profileCount: countOfProfiles,
             savedProfiles: [],
             amountPaid: amountPaid,
-            validTill: validTill,
             userId: candidate._id,
             userEmail: candidate.userEmail,
             referenceCode: candidate.referenceCode,
