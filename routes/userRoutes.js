@@ -926,9 +926,7 @@ userRoutes.get(
 const uploadToCloudinary = (buffer) => {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { folder: "matrimony_images",
-        type: "authenticated"
-       },
+      { folder: "matrimony_images", type: "authenticated" },
       (error, result) => {
         if (error) return reject(error);
         resolve(result);
@@ -1023,7 +1021,7 @@ userRoutes.post(
   async (req, res) => {
     try {
       const { imageId } = req.body;
-      console.log(imageId)
+      console.log(imageId);
       if (!imageId) {
         return res.status(400).json({
           message: "failure",
@@ -1032,14 +1030,26 @@ userRoutes.post(
       }
 
       const image = await Candidate.findOne({ _id: req.user._id });
-      const profileImageId = image.image.split("/")
-      const pID= profileImageId[profileImageId.length - 2] + "/" +profileImageId[profileImageId.length - 1];
-      console.log(pID)
-      // await cloudinary.uploader.destroy(imageId);
-
-      // await Candidate.findByIdAndUpdate(req.user._id, {
-      //   $pull: { images: { public_id: imageId } },
-      // });
+      const profileImageId = image.image.split("/");
+      const pID =
+        profileImageId[profileImageId.length - 2] +
+        "/" +
+        profileImageId[profileImageId.length - 1];
+      console.log(pID);
+      if (pID === imageId) {
+        await Candidate.findOneAndUpdate(
+          { _id: req.user._id },
+          { $set: { image: "" } }
+        );
+      }
+      await cloudinary.uploader.destroy(imageId, {
+        type: "authenticated",
+        resource_type: "image",
+      });
+      
+      await Candidate.findByIdAndUpdate(req.user._id, {
+        $pull: { images: { public_id: imageId } },
+      });
 
       return res.status(200).json({
         message: "success",
@@ -1054,6 +1064,24 @@ userRoutes.post(
   }
 );
 
+
+function getCloudinaryPrivateURL(public_id){
+  if(public_id === ""){
+    return ""
+  }
+  else{
+    const signedUrl = cloudinary.url(public_id, {
+      type: "authenticated",
+      sign_url: true,
+      secure: true,
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+    });
+    
+    return signedUrl;
+  }
+  
+}
+
 userRoutes.get(
   "/get-profile-image",
   authMiddleware,
@@ -1064,8 +1092,11 @@ userRoutes.get(
       let userImage = user.image;
       console.log("user.image");
       console.log(userImage);
-      if (userImage === undefined) {
+      if (userImage === "") {
         userImage = "";
+      }
+      else{
+        userImage = getCloudinaryPrivateURL(userImage)
       }
       return res.status(200).json({
         message: "success",

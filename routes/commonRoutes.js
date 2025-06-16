@@ -141,15 +141,21 @@ function applyFilters(query, filters = {}, currentUser = {}) {
   }
 }
 
-function getCloudinaryPrivateURL(publicID){
-  const url = cloudinary.utils.private_download_url(
-    publicID,
-    {
+function getCloudinaryPrivateURL(public_id){
+  if(public_id === ""){
+    return ""
+  }
+  else{
+    const signedUrl = cloudinary.url(public_id, {
       type: "authenticated",
-      expires_at: Math.floor(Date.now() / 1000) + 3600, // valid for 1 hour
-    }
-  );
-  return url;
+      sign_url: true,
+      secure: true,
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+    });
+    
+    return signedUrl;
+  }
+  
 }
 
 function mapUsers(users) {
