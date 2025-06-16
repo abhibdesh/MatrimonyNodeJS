@@ -926,7 +926,9 @@ userRoutes.get(
 const uploadToCloudinary = (buffer) => {
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { folder: "matrimony_images" },
+      { folder: "matrimony_images",
+        type: "authenticated"
+       },
       (error, result) => {
         if (error) return reject(error);
         resolve(result);
@@ -1021,7 +1023,7 @@ userRoutes.post(
   async (req, res) => {
     try {
       const { imageId } = req.body;
-      console.log(imageId);
+      console.log(imageId)
       if (!imageId) {
         return res.status(400).json({
           message: "failure",
@@ -1029,12 +1031,15 @@ userRoutes.post(
         });
       }
 
-      const image = Candidate.findOne({ _id: req.user._id });
-      await cloudinary.uploader.destroy(imageId);
+      const image = await Candidate.findOne({ _id: req.user._id });
+      const profileImageId = image.image.split("/")
+      const pID= profileImageId[profileImageId.length - 2] + "/" +profileImageId[profileImageId.length - 1];
+      console.log(pID)
+      // await cloudinary.uploader.destroy(imageId);
 
-      await Candidate.findByIdAndUpdate(req.user._id, {
-        $pull: { images: { public_id: imageId } },
-      });
+      // await Candidate.findByIdAndUpdate(req.user._id, {
+      //   $pull: { images: { public_id: imageId } },
+      // });
 
       return res.status(200).json({
         message: "success",

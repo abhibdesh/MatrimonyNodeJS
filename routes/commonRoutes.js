@@ -12,10 +12,16 @@ import DistrictMaster from "../models/DistrictsBase.js";
 import PaymentBase from "../models/Payment.js";
 import moment from "moment-timezone";
 import dotenv from "dotenv";
+import { v2 as cloudinary } from "cloudinary";
+
 dotenv.config();
 
 const commonRoutes = express.Router();
-
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 commonRoutes.get("/health-check", async (req, res) => {
   try {
     return res.status(200).json({ message: "success", data: "Healthy" });
@@ -135,6 +141,17 @@ function applyFilters(query, filters = {}, currentUser = {}) {
   }
 }
 
+function getCloudinaryPrivateURL(publicID){
+  const url = cloudinary.utils.private_download_url(
+    publicID,
+    {
+      type: "authenticated",
+      expires_at: Math.floor(Date.now() / 1000) + 3600, // valid for 1 hour
+    }
+  );
+  return url;
+}
+
 function mapUsers(users) {
   return users.map((u) => {
     return {
@@ -148,7 +165,7 @@ function mapUsers(users) {
             : "NA",
         _id: u._id,
         isVerified: u.isVerified,
-        profileImage: u.image,
+        profileImage: getCloudinaryPrivateURL(u.image),
         birthDate: u.birthDate,
         birthTime: u.birthTime,
         birthPlace: u.birthPlace,
@@ -272,8 +289,8 @@ commonRoutes.post(
         incomeGroup: 1,
         addressInShort: 1,
         community: 1,
+        image:1,
         isVerified: 1,
-        image: 1,
         __t: 1,
       };
 
@@ -370,6 +387,7 @@ commonRoutes.post(
       const finalDataList = mapUsers(users);
 
       console.log(users)
+      console.log("usersusersusersusersusersusersusersusersusersusers")
       res.json({
         message: "Success",
         users: finalDataList,
