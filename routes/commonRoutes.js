@@ -422,6 +422,7 @@ commonRoutes.get(
       return res.status(200).json({
         message: "success",
         data: user,
+        image: getCloudinaryPrivateURL(user.image),
         percent: await calculateProfileCompletion(req.user._id),
       });
     } catch (error) {
