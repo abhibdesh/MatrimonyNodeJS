@@ -1092,7 +1092,7 @@ userRoutes.get(
       let userImage = user.image;
       console.log("user.image");
       console.log(userImage);
-      if (userImage === "") {
+      if (userImage === undefined) {
         userImage = "";
       }
       else{

@@ -741,6 +741,11 @@ commonRoutes.get(
       const localTimezone = "Asia/Kolkata";
       const now = moment().tz(localTimezone);
 
+      if(req.user.__t === "owner"){
+        emailIdString = data.userEmail;
+        contactNumberString = data.phoneNumber;
+      }
+
       if (paymentInfo) {
         const hasProfile = paymentInfo.savedProfiles.includes(data._id);
         const isApproved =
