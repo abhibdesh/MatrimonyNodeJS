@@ -7,6 +7,8 @@ import updateLastActivity from "../middleware/updateLastActivity.js";
 import Payment from "../models/Payment.js";
 import moment from "moment-timezone";
 import MenuMaster from "../models/MenuMaster.js";
+import {generateKeyPairSync} from "crypto";
+import {encryptPrivateKey} from "../middleware/signerVerify.js"
 
 const ownerRoutes = express.Router();
 
@@ -24,11 +26,20 @@ ownerRoutes.post(
         userPassword,
         communityList,
         percentageShare,
+        isTestData
       } = req.body;
       const hashedPassword = await bcrypt.hash(userPassword, 10);
       const user = await UserBase.findOne({ userEmail: userEmail });
       console.log(user);
       if (!user) {
+        const { publicKey, privateKey } = generateKeyPairSync('rsa', {
+          modulusLength: 2048,
+          publicKeyEncoding: { type: 'spki', format: 'pem' },
+          privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
+        });
+        const secretKey = process.env.PRIVATE_KEY_ENCRYPTION
+        const encryptedKeys = encryptPrivateKey(privateKey,secretKey)
+        console.log(encryptedKeys)
         let name = (firstName + lastName).padEnd(3, "X");
         const prefix = name.slice(0, 3).toUpperCase();
         const random = Math.floor(Math.random() * 9001) + 999;
@@ -41,7 +52,7 @@ ownerRoutes.post(
           .replace(/O/g, "Q")
           .replace(/l/g, "X");
         console.log(finalAdminCode);
-        await Admin.create({
+        const id = await Admin.create({
           firstName: firstName,
           lastName: lastName,
           referenceCode: finalAdminCode,
@@ -49,12 +60,16 @@ ownerRoutes.post(
           phoneNumber: phoneNumber,
           userEmail: userEmail,
           userPassword: hashedPassword,
+          privateKey:encryptedKeys,
+          publicKeyPem:publicKey,
           percentageShare: parseFloat(percentageShare),
+          isTestData: isTestData
         });
         console.log(user);
         res.status(200).json({
           message: "success",
           data: "Admin account created successfully",
+          _id:id
         });
       } else {
         return res
@@ -82,6 +97,7 @@ ownerRoutes.get(
       } else {
         const totalCount = await Payment.countDocuments({
           isApproved: false,
+          status:"PAID_PENDING_APPROVAL",
           isPaymentSettled: false,
         });
 
@@ -242,7 +258,8 @@ ownerRoutes.post(
         await Payment.findByIdAndUpdate(transaction, {
           isApproved: true,
           approvalTimestamp: atm,
-          validTill:validTill
+          validTill:validTill,
+          status:"APPROVED"
         });
         return res
           .status(200)

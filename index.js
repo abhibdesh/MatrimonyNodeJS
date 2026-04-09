@@ -1,56 +1,47 @@
 import express from "express";
 import cors from "cors";
-import cookieParser from "cookie-parser"
+import cookieParser from "cookie-parser";
+import dotenv from "dotenv";
+
 import userRoutes, { setGridFSBucket } from "./routes/userRoutes.js"; 
 import commonRoutes from "./routes/commonRoutes.js"; 
 import ownerRoutes from "./routes/ownerRoutes.js"; 
-import mongoose from 'mongoose';
-import { GridFSBucket } from 'mongodb';
-import dotenv from 'dotenv';
 import adminRoutes from "./routes/adminRoutes.js";
 import paymentRoutes from "./routes/paymentRoutes.js";
-import cronjobRoutes from "./routes/cronjobRoutes.js"
+import cronjobRoutes from "./routes/cronjobRoutes.js";
 import emailRoutes from "./routes/emailRoutes.js";
+
+import { mongoose, sutabandhanConnection } from "./dbConnections.js";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT;
-const MONGO_URI = process.env.DATABASE_URL
 
 // Middleware
-app.use(cookieParser())
-app.use(express.json())
+app.use(cookieParser());
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use((req, res, next) => {
+  console.log("CORS check:", req.headers.origin);
+  next();
+});
+
+const allowedOrigins = process.env.ENVIRONMENT.split(",").map(o => o.trim());
 app.use(
   cors({
-    origin: process.env.ENVIRONMENT, 
-    credentials: true, 
+    origin: function (origin, callback) {
+      // allow requests with no origin (like Postman or curl)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        return callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
   })
 );
-app.use(express.json());
-
-// Connect to MongoDB
-mongoose.connect(MONGO_URI)
-  .then(() => {
-    const db = mongoose.connection.db;
-    const bucket = new GridFSBucket(db);
-    setGridFSBucket(bucket); 
-    console.log('MongoDB connected and GridFSBucket initialized');
-  })
-  .catch(err => console.error('MongoDB connection error:', err));
-
-mongoose.connection.on("connected", () => {
-  console.log("✅ MongoDB connection established");
-});
-
-mongoose.connection.on("error", (err) => {
-  console.error("❌ MongoDB connection error:", err);
-});
-
-mongoose.connection.on("disconnected", () => {
-  console.warn("⚠️ MongoDB disconnected. Trying to reconnect...");
-});
 
 // API Routes
 app.use("/api/users", userRoutes);
@@ -61,7 +52,6 @@ app.use("/api/payment", paymentRoutes);
 app.use("/api/email-routes", emailRoutes);
 app.use("/api/cronjobRoutes", cronjobRoutes);
 
-// Start server
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });

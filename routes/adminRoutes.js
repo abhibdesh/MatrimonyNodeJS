@@ -7,8 +7,33 @@ import Admin from "../models/AdminBase.js";
 import Payment from "../models/Payment.js";
 import moment from "moment-timezone";
 import mongoose from "mongoose";
+import { decryptPrivateKey, verifyKeys } from "../middleware/signerVerify.js";
+import { createHash, sign } from "crypto";
+import crypto from "crypto";
+import { appendApprovalTransactional } from "../services/appendApprovalWorker.js";
+import { v2 as cloudinary } from "cloudinary";
 
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 const adminRoutes = Router();
+
+function getCloudinaryPrivateURL(public_id) {
+  if (public_id === "") {
+    return "";
+  } else {
+    const signedUrl = cloudinary.url(public_id, {
+      type: "authenticated",
+      sign_url: true,
+      secure: true,
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+    });
+
+    return signedUrl;
+  }
+}
 
 adminRoutes.post(
   "/verify-candidate",
@@ -39,7 +64,7 @@ adminRoutes.post(
         }
       }
     } catch (error) {
-      console.log(error)
+      console.log(error);
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }
@@ -51,9 +76,11 @@ adminRoutes.get(
   updateLastActivity,
   async (req, res) => {
     try {
+      let users = [];
+
       if (req.user.__t === "admin") {
         const admin = await Admin.findById(req.user._id);
-        const users = await Candidate.find(
+        users = await Candidate.find(
           {
             __t: "candidate",
             referenceCode: admin.referenceCode,
@@ -67,25 +94,42 @@ adminRoutes.get(
             isEmailVerified: 1,
             phoneNumber: 1,
             isPhoneVerified: 1,
+            image: 1,
           }
         );
-        return res.status(200).json({ message: "success", data: users });
-      }
-      if (req.user.__t === "candidate") {
+      } else if (req.user.__t === "owner") {
+        users = await Candidate.find(
+          {
+            __t: "candidate",
+            referenceCode: "",
+          },
+          {
+            _id: 1,
+            firstName: 1,
+            lastName: 1,
+            userEmail: 1,
+            isEmailVerified: 1,
+            phoneNumber: 1,
+            isPhoneVerified: 1,
+            image: 1,
+          }
+        );
+      } else if (req.user.__t === "candidate") {
         return res.status(401).json({
-          message: "success",
-          data: "You are unauthorised to get this information",
+          message: "failure",
+          data: "You are unauthorized to get this information",
         });
       }
-      if (req.user.__t === "owner") {
-        const users = await Candidate.find({
-          __t: "candidate",
-          referenceCode: "",
-        });
-        return res.status(200).json({ message: "success", data: users });
-      }
+
+      // Convert image public_id to signed Cloudinary URLs
+      const usersWithImages = users.map((user) => ({
+        ...user._doc,
+        image: getCloudinaryPrivateURL(user.image || ""),
+      }));
+
+      return res.status(200).json({ message: "success", data: usersWithImages });
     } catch (error) {
-      console.log(error)
+      console.error(error);
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }
@@ -99,24 +143,100 @@ adminRoutes.post(
     try {
       if (req.user.__t === "candidate") {
         return res.status(401).json({
-          message: "success",
+          message: "failure",
           data: "You are unauthorised to assign community",
         });
       } else {
-        const { _id, community } = req.body;
-        console.log(_id)
-        console.log(community)
-        await Candidate.findByIdAndUpdate(_id, {
-          $set: {
-            isVerified: true,
-            community: community,
-          },
-        });
-        return res.status(200).json({
-          message: "success",
-          data: "Community Assigned Successfully",
-        });
-      }
+        const row = await Admin.findById(req.user._id);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const strikesToday = row.approvalsToday;
+
+        // if (strikesToday > 10 && row.status === "active") {
+        //   await Admin.findByIdAndUpdate(req.user._id, {
+        //     status: "frozen",
+        //     $push: { strikes: { reason: "Exceeded daily approvals" } },
+        //   });
+        //   return res.status(400).json({
+        //     message: "failure",
+        //     data: "Exceeded daily approvals",
+        //   });
+        // } else {
+          if (row.status === "active") {
+            const { _id, community, deviceData } = req.body;
+            // const secretKey = process.env.PRIVATE_KEY_ENCRYPTION;
+
+            // const privateKeyPem = decryptPrivateKey(row.privateKey, secretKey);
+
+            const ipAddress =
+              req.headers["x-forwarded-for"] || // standard header for proxies
+              req.connection.remoteAddress || // fallback for direct connection
+              req.socket.remoteAddress ||
+              (req.connection.socket
+                ? req.connection.socket.remoteAddress
+                : null);
+
+            const payload = JSON.stringify({
+              ip: ipAddress,
+              user: req.user._id,
+              deviceData: deviceData,
+            });
+            
+            const result = await appendApprovalTransactional(
+              row._id,
+              _id,
+              payload,
+              crypto.randomUUID(),
+              community
+            );
+
+            // This code is used for single sign by the admin and is backup. Never to be removed.
+            // const hash = createHash("sha256").update(payload).digest("hex");
+
+            // const signature = sign("sha256", Buffer.from(payload), {
+            //   key: privateKeyPem,
+            //   padding: crypto.constants.RSA_PKCS1_PSS_PADDING,
+            // });
+            // const signatureBase64 = signature.toString("base64");
+
+            // const isValid = verifyKeys(
+            //   payload,
+            //   signatureBase64,
+            //   row.publicKeyPem
+            // );
+
+            // if (isValid) {
+            if (result.ok) {
+                 await Admin.findByIdAndUpdate(req.user._id, {
+                $inc: { approvalsToday: 1 },
+                deviceData,
+              });
+              return res.status(200).json({
+                message: "success",
+                data: "Community Assigned Successfully",
+              });
+             
+              // // Assuming you have adminId
+           
+            } else {
+              // Step 1 (soft fail): When signature verification fails, flag the candidate record as tampered: true. Don’t show them as verified.
+              // Step 2 (admin accountability): Link that tampered record back to the admin who approved it. If multiple failures occur from the same admin, freeze the admin account, not the user.
+              // Step 3 (audit log): Record the failure in an immutable audit log (reason: “Signature verification failed”).
+              // Step 4 (owner escalation): Notify the owner (you) — so you can manually investigate.
+              return res.status(400).json({
+                message: "failure",
+                data: "The data may have been tampered",
+              });
+            }
+          } else {
+            return res.status(400).json({
+              message: "failure",
+              data: "Your account status is " + row.status,
+            });
+          }
+        }
+    //  }
     } catch (error) {
       console.log(error);
       return res.status(500).json({ message: "failure", data: error.message });
@@ -222,7 +342,7 @@ adminRoutes.get(
         });
       }
     } catch (error) {
-      console.log(error)
+      console.log(error);
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }

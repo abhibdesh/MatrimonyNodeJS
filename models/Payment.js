@@ -1,21 +1,43 @@
 import mongoose from "mongoose";
+import { sutabandhanConnection } from "../dbConnections.js";
+
 
 const paymentSchema = new mongoose.Schema(
   {
-    payerName: { type: String },
-    planDuration: { type: String },
-    profileCount: { type: Number },
-    isApproved: { type: Boolean, default: false },
-    amountPaid: { type: Number },
-    transactionId:{type:String},
-    validTill: { type: Date },
-    userId: { type: String },
-    userEmail: { type: String },
-    referenceCode: { type: String },
-    totalProfilesViewed: { type: Number, default:0 },
-    savedProfiles: { type: [String], default: [] },
-    approvalTimestamp: { type: Date, default:null },
-    isPaymentSettled: { type: Boolean, default: false }
+    payerName:        { type: String },
+    planDuration:     { type: String, required: true },
+    profileCount:     { type: Number, required: true },
+    amountPaid:       { type: Number, required: true },
+
+    // unique transaction identifier
+    transactionId:    { type: String, required: true, unique: true },
+
+    // life‑cycle status field
+    status: {
+      type: String,
+      enum: [
+        "QR_GENERATED",         // QR upserted, awaiting user “Done”
+        "PAID_PENDING_APPROVAL",// user clicked Done
+        "APPROVED",             // admin approved
+        "REJECTED"              // admin rejected or expired
+      ],
+      default: "QR_GENERATED",
+      required: true
+    },
+
+    paidAt:           { type: Date },   // timestamp of “Done” click
+    validTill:        { type: Date },   // your existing validity window
+    
+    // approval workflow
+    isApproved:       { type: Boolean, default: false },
+    approvalTimestamp:{ type: Date },
+
+    userEmail:        { type: String },
+    referenceCode:    { type: String },
+
+    totalProfilesViewed: { type: Number, default: 0 },
+    savedProfiles:       { type: [String], default: [] },
+    isPaymentSettled:    { type: Boolean, default: false }
   },
   {
     timestamps: true,
@@ -23,6 +45,10 @@ const paymentSchema = new mongoose.Schema(
   }
 );
 
-const PaymentBase = mongoose.model("PaymentsInfo", paymentSchema);
+// TTL index to auto‑expire unconfirmed QR_GENERATED after 15 mins
+paymentSchema.index(
+  { createdAt: 1 },
+  { expireAfterSeconds: 15 * 60 , partialFilterExpression: { status: "QR_GENERATED" } }
+);
 
-export default PaymentBase;
+export default sutabandhanConnection.model("Payment", paymentSchema);

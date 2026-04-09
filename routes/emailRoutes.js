@@ -90,7 +90,6 @@ const generateEmail = (header, body) => {
         </html>`;
 };
 
-
 emailRoutes.post(
   "/verifiy-email-send-otp",
   authMiddleware,
@@ -108,7 +107,7 @@ emailRoutes.post(
         OTP: otp,
         userId: req.user._id,
       });
-      const transporter = createTransporter()
+      const transporter = createTransporter();
 
       let receiverMail;
       if (environment === "LOCAL" || environment === "UAT") {
@@ -122,20 +121,23 @@ emailRoutes.post(
         to: receiverMail,
         bcc: process.env.ADMIN_EMAILS.split(";"),
         subject: "Email Verification",
-        html: generateEmail("Verification OTP",`<p>Hi ${userName},</p>
+        html: generateEmail(
+          "Verification OTP",
+          `<p>Hi ${userName},</p>
             <p>Thank you for signing up! Please use the following One-Time Password (OTP) to verify your email address:</p>
             <div class="otp-box">${otp}</div>
             <p>This OTP is valid for the next 30 minutes. Please do not share it with anyone.</p>
-            <p>If you did not request this, please ignore this email.</p>`)
-          };
+            <p>If you did not request this, please ignore this email.</p>`
+        ),
+      };
       transporter
         .sendMail(mailOptions)
         .then((info) => console.log("Email sent:", info.response))
         .catch((error) => console.error("Error sending email:", error));
-        return res.status(200).json({
-          message: "success",
-          data: "Please check your registered email for OTP.",
-        });
+      return res.status(200).json({
+        message: "success",
+        data: "Please check your registered email for OTP.",
+      });
     } catch (error) {
       console.log(error);
       return res.status(500).json({ message: "failure", data: error.message });
@@ -195,7 +197,12 @@ emailRoutes.post(
 emailRoutes.post("/forgot-password", async (req, res) => {
   const { userEmail } = req.body;
   try {
-    const user = await UserBase.findOne({ userEmail: userEmail });
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const query = emailRegex.test(userEmail)
+      ? { userEmail: userEmail }
+      : { phoneNumber: userEmail };
+
+    const user = await UserBase.findOne(query);
     if (!user) {
       return res
         .status(404)
@@ -413,7 +420,9 @@ emailRoutes.post(
     try {
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
-        return res.status(400).json({message :"validation_error", errors: errors.array() });
+        return res
+          .status(400)
+          .json({ message: "validation_error", errors: errors.array() });
       }
       const {
         firstName,

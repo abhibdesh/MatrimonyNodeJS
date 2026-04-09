@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { sutabandhanConnection } from "../dbConnections.js";
 
 const emailOTPSchema = new mongoose.Schema(
   {
@@ -9,6 +10,6 @@ const emailOTPSchema = new mongoose.Schema(
   { timestamps: true, collection: "EmailValidations" }
 );
 
-const emailOTP = mongoose.model("EmailValidations", emailOTPSchema);
+const emailOTP = sutabandhanConnection.model("EmailValidations", emailOTPSchema);
 
 export default emailOTP;

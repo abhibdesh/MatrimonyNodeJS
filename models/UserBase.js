@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { sutabandhanConnection } from "../dbConnections.js";
 import { type } from "os";
 
 const options = { discriminatorKey: "__t", timestamps: true };
@@ -23,6 +24,6 @@ const userBaseSchema = new mongoose.Schema(
   options
 );
 
-const UserBase = mongoose.model("User", userBaseSchema);
+const UserBase = sutabandhanConnection.model("User", userBaseSchema);
 
 export default UserBase;

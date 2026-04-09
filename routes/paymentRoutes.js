@@ -3,8 +3,13 @@ import updateLastActivity from "../middleware/updateLastActivity.js";
 import Candidate from "../models/User.js";
 import { Router } from "express";
 import Payment from "../models/Payment.js";
-import moment from "moment-timezone";
-import QRCode from "qrcode";
+import {
+  calculateAmount,
+  generateTxnId,
+  buildUpiLink,
+  generateQrImage,
+  getValidTill,
+} from "../Utils/utils.js";
 
 const paymentRoutes = Router();
 
@@ -14,155 +19,136 @@ paymentRoutes.post(
   updateLastActivity,
   async (req, res) => {
     try {
-      if(req.user.__t ==="candidate"){
+      if (req.user.__t === "candidate") {
         const { planDuration, profileCount } = req.body;
-        console.log(planDuration)
-        console.log(profileCount)
-        const candidate = await Candidate.findById(req.user._id);
-        const localTimezone = "Asia/Kolkata";
-        const today = moment().tz(localTimezone).startOf("day");
-  
-        const startOfDay = today.toDate();
-        const endOfDay = moment(today).endOf("day").toDate();
-        const atm = moment().tz(localTimezone);
-        let amountPaid;
-        let countOfProfiles;
-  
-        if (planDuration === "1") {
-          if (profileCount === "10") {
-            amountPaid = 499;
-            countOfProfiles = 10;
-          }
-          if (profileCount === "25") {
-            amountPaid = 999;
-            countOfProfiles = 25;
-          }
-          if (profileCount === "30") {
-            amountPaid = 1299;
-            countOfProfiles = 30;
-          }
-          if (profileCount === "Unlimited") {
-            amountPaid = 1599;
-            countOfProfiles = 0;
-          }
-        }
-        if (planDuration === "3") {
-          if (profileCount === "10") {
-            amountPaid = 899;
-            countOfProfiles = 30;
-          }
-          if (profileCount === "25") {
-            amountPaid = 1399;
-            countOfProfiles = 25;
-          }
-          if (profileCount === "30") {
-            amountPaid = 1599;
-            countOfProfiles = 30;
-          }
-          if (profileCount === "Unlimited") {
-            amountPaid = 1999;
-            countOfProfiles = 0;
-          }
-        }
-        if (planDuration === "6") {
-          if (profileCount === "10") {
-            amountPaid = 1299;
-            countOfProfiles = 10;
-          }
-          if (profileCount === "25") {
-            amountPaid = 1699;
-            countOfProfiles = 25;
-          }
-          if (profileCount === "30") {
-            amountPaid = 1999;
-            countOfProfiles = 30;
-          }
-          if (profileCount === "Unlimited") {
-            amountPaid = 2499;
-            countOfProfiles = 0;
-          }
-        }
-        if (planDuration === "9") {
-          if (profileCount === "10") {
-            amountPaid = 1299;
-            countOfProfiles = 10;
-          }
-          if (profileCount === "25") {
-            amountPaid = 1599;
-            countOfProfiles = 25;
-          }
-          if (profileCount === "30") {
-            amountPaid = 1999;
-            countOfProfiles = 30;
-          }
-          if (profileCount === "Unlimited") {
-            amountPaid = 2499;
-            countOfProfiles = 0;
-          }
-        }
-  
-        if (planDuration === "1Y") {
+        const amountPaid = calculateAmount(planDuration, profileCount);
+        const validTill = getValidTill(planDuration);
+        const transactionId = generateTxnId();
+        await Payment.findOneAndUpdate(
+          { userEmail: req.user.userEmail, transactionId },
           {
-            amountPaid = 4999;
-            countOfProfiles = 0;
-          }
-        }
-        const count = await Payment.countDocuments({
-          createdAt: { $gte: startOfDay, $lte: endOfDay },
+            $set: {
+              planDuration,
+              profileCount:
+                profileCount === "Unlimited" ? 0 : parseInt(profileCount),
+              amountPaid,
+              status: "QR_GENERATED",
+              validTill: validTill,
+            },
+            $setOnInsert: { createdAt: new Date() },
+          },
+          { upsert: true }
+        );
+
+        const upiLink = buildUpiLink({
+          transactionId,
+          amount: amountPaid,
+          planDuration,
+          profileCount,
         });
-  
-        let transactionId = atm.format("YYYYMMDDHHMMss");
-        if (count >= 0 && count < 10)
-          transactionId = transactionId + "0000" + count;
-        else if (count >= 10 && count < 100)
-          transactionId = transactionId + "000" + count;
-        else if (count >= 100 && count < 1000)
-          transactionId = transactionId + "00" + count;
-  
-        const upiId = "abhibdesh@okaxis";
-        const note =
-          "Plan period " +
-          planDuration +
-          " Profile Count " +
-          profileCount +
-          " Transaction " +
-          transactionId;
-        const upiLink = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(
-          "Fyjix"
-        )}&mc=&tid=${transactionId}&tr=${transactionId}&tn=${encodeURIComponent(
-          note
-        )}&am=${amountPaid}&cu=INR`;
-        console.log(upiLink)
-        if (req.user.__t === "candidate") {
-          await Payment.create({
-            payerName: candidate.firstName + " " + candidate.lastName,
-            planDuration: planDuration,
-            profileCount: countOfProfiles,
-            savedProfiles: [],
-            amountPaid: amountPaid,
-            userId: candidate._id,
-            userEmail: candidate.userEmail,
-            referenceCode: candidate.referenceCode,
-            transactionId: transactionId,
-          });
-          const image = await QRCode.toDataURL(upiLink, {
-            errorCorrectionLevel: "H",
-          });
-          return res.status(200).json({
-            message: "success",
-            data: image,
-          });
-        }      
+        const qrImage = await generateQrImage(upiLink);
+
+        return res.status(200).json({
+          txn_id: transactionId,
+          amount: amountPaid,
+          data: qrImage,
+        });
       } else {
-        return res
-          .status(401)
-          .json({
-            message: "failure",
-            data: "You are unauthorised to generate QR code",
-          });
+        return res.status(401).json({
+          message: "failure",
+          data: "You are unauthorised to generate QR code",
+        });
       }
     } catch (error) {
-      console.log(error)
+      console.log(error);
+      return res.status(500).json({ message: "failure", data: error.message });
+    }
+  }
+);
+
+// paymentRoutes.post(
+//   "/mark-payment-done",
+//   authMiddleware,
+//   updateLastActivity,
+//   async (req, res) => {
+//     try {
+//       if (req.user.__t === "candidate") {
+//         const { transactionId } = req.body;
+//         const refCode = await Candidate.findOne({"userEmail":req.user.userEmail})
+//         console.log(req.user._id)
+// const payment = await Payment.findOneAndUpdate(
+//   { userId: req.user._id, transactionId },
+//   {
+//     status: "PAID_PENDING_APPROVAL",
+//     paidAt: new Date(),
+//     referenceCode: refCode.referenceCode
+//   },
+//   { new: true }
+// );
+//         if (!payment) {
+//           return res.status(406).json({ message: "failure", data: "Invalid transactionId" });
+//         }
+//         return res.status(200).json({ message: "success", data: "Payment confirmed" });
+//       } else {
+//         return res.status(401).json({
+//           message: "failure",
+//           data: "You are unauthorised to generate QR code",
+//         });
+//       }
+//     } catch (error) {
+//       console.log(error);
+//       return res.status(500).json({ message: "failure", data: error.message });
+//     }
+//   }
+// );
+
+paymentRoutes.post(
+  "/confirm-payment",
+  authMiddleware,
+  updateLastActivity,
+  async (req, res) => {
+    const { transactionId } = req.body;
+    console.log(transactionId);
+    const refCode = await Candidate.findOne({ userEmail: req.user.userEmail });
+    console.log(refCode.referenceCode);
+    console.log(refCode.referenceCode);
+    await Payment.findOneAndUpdate(
+      { userEmail: req.user.userEmail, transactionId },
+      {
+        status: "PAID_PENDING_APPROVAL",
+        paidAt: new Date(),
+        referenceCode: refCode.referenceCode,
+      },
+      { new: true }
+    );
+    return res
+      .status(200)
+      .json({ message: "success", data: "Payment confirmed" });
+  }
+);
+
+paymentRoutes.post(
+  "/clear-data",
+  authMiddleware,
+  updateLastActivity,
+  async (req, res) => {
+    try {
+      const { transaction } = req.body;
+      console.log("Deleting transaction:", transaction);
+
+      const payment = await Payment.deleteOne({ transactionId: transaction });
+
+      if (payment.deletedCount === 0) {
+        return res
+          .status(404)
+          .json({ message: "failure", data: "No matching payment found" });
+      }
+
+      return res
+        .status(200)
+        .json({ message: "success", data: "Payment deleted" });
+    } catch (error) {
+      console.error(error);
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }
@@ -174,40 +160,45 @@ paymentRoutes.get(
   updateLastActivity,
   async (req, res) => {
     try {
-      if(req.user.__t === "candidate"){
+      if (req.user.__t === "candidate") {
         const todayDate = new Date();
-        const paymentCollection = await Payment.find({ userId: req.user._id })
-          .sort({ createdAt: -1 })
-          const paymentData = [];
-        
-          for (let doc of paymentCollection) {
-            doc = doc.toObject();
-          
-            doc.totalProfilesViewed = doc.savedProfiles?.length || 0;
-            doc.validity = doc.validTill;
-          
-            const validTillDate = new Date(doc.validTill);
-            const isExpired = validTillDate < todayDate;
-          
-            if (
-              (doc.profileCount !== 0 && doc.totalProfilesViewed >= doc.profileCount) ||
-              isExpired
-            ) {
-              doc.validTill = "Validity Expired";
-            }
-            paymentData.push(doc);
+        const paymentCollection = await Payment.find({
+          userEmail: req.user.userEmail,
+          status: { $in: ["PAID_PENDING_APPROVAL", "APPROVED"] },
+        }).sort({ createdAt: -1 });
+        const paymentData = [];
+
+        for (let doc of paymentCollection) {
+          doc = doc.toObject();
+
+          doc.totalProfilesViewed = doc.savedProfiles?.length || 0;
+          doc.validity = doc.validTill;
+
+          const validTillDate = new Date(doc.validTill);
+          const isExpired = validTillDate < todayDate;
+
+          if (
+            (doc.profileCount !== 0 &&
+              doc.totalProfilesViewed >= doc.profileCount) ||
+            isExpired
+          ) {
+            doc.validTill = "Validity Expired";
           }
-          
+          paymentData.push(doc);
+        }
+
         return res.status(200).json({
           message: "success",
           data: paymentData,
         });
-      }
-      else{
-        return res.status(401).json({ message: "failure", data: "Your are unauthorised to get payments" });
+      } else {
+        return res.status(401).json({
+          message: "failure",
+          data: "Your are unauthorised to get payments",
+        });
       }
     } catch (error) {
-      console.log(error)
+      console.log(error);
       return res.status(500).json({ message: "failure", data: error.message });
     }
   }

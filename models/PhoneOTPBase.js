@@ -1,4 +1,6 @@
 import mongoose from "mongoose";
+import { sutabandhanConnection } from "../dbConnections.js";
+
 
 const phoneOTPSchema = new mongoose.Schema(
   {
@@ -9,6 +11,6 @@ const phoneOTPSchema = new mongoose.Schema(
   { timestamps: true, collection: "PhoneValidations" }
 );
 
-const phoneOTP = mongoose.model("PhoneValidations", phoneOTPSchema);
+const phoneOTP = sutabandhanConnection.model("PhoneValidations", phoneOTPSchema);
 
 export default phoneOTP;

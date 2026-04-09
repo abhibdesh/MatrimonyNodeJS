@@ -88,6 +88,7 @@ function mapUsers(users) {
         profileImage: u.image,
         birthDate: u.birthDate,
         birthTime: u.birthTime,
+        profileImage: getCloudinaryPrivateURL(u.image),
         birthPlace: u.birthPlace,
       },
     };
@@ -97,7 +98,7 @@ function mapUsers(users) {
 async function sendOtpToUser(phone, otp) {
   console.log("sendOtpToUser");
 
-  const url = `https://graph.facebook.com/v19.0/${process.env.META_PHONE_NUMBER_ID}/messages`;
+  const url = `https://graph.facebook.com/v22.0/660208120515893/messages/${process.env.META_PHONE_NUMBER_ID}/messages`;
 
   const headers = {
     Authorization: `Bearer ${process.env.META_ACCESS_TOKEN}`,

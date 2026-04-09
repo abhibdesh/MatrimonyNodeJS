@@ -10,18 +10,19 @@ const CandidateSchema = new mongoose.Schema(
     currentAddress: { type: String, default: "" },
     isVerified: { type: Boolean, default: false },
     community: { type: String, default: "" },
-    isPhoneVerified: { type: Boolean, default: false },
+    isPhoneVerified: { type: Boolean, default: true },
     isEmailVerified: { type: Boolean, default: false },
     image: { type: String, default: "" },
     profileImage: {},
-    images: [{
-      url: { type: String, required: true },
-      public_id:{type: String, required: true},
-      signature:{type: String, required: true},
-      resource_type:{type: String, required: true},
-      format:{type: String, required: true},
-      createdAt: { type: Date, default: Date.now }
-    }
+    images: [
+      {
+        url: { type: String, required: true },
+        public_id: { type: String, required: true },
+        signature: { type: String, required: true },
+        resource_type: { type: String, required: true },
+        format: { type: String, required: true },
+        createdAt: { type: Date, default: Date.now },
+      },
     ],
     driveFolderId: { type: String, default: "" },
     birthDate: { type: Date, default: null },
@@ -76,6 +77,11 @@ const CandidateSchema = new mongoose.Schema(
     userPaid: { type: Boolean, default: false },
     readTCP: { type: Boolean, default: true },
     deactivationReason: { type: String },
+    hash: { type: String },
+    signature: { type: String },
+    tampered: { type: Boolean, default: false },
+    revocationReason:{type:String, default:""},
+    verificationRevokedAt: {type: Date, default: null }
   },
   { _id: false }
 );

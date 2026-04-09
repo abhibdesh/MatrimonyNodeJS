@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { sutabandhanConnection } from "../dbConnections.js";
 
 const MenuMasterSchema = new mongoose.Schema(
   {
@@ -11,6 +12,6 @@ const MenuMasterSchema = new mongoose.Schema(
   { timestamps: true, collection: "MenuMaster" }
 );
 
-const MenuMaster = mongoose.model("MenuMaster", MenuMasterSchema);
+const MenuMaster = sutabandhanConnection.model("MenuMaster", MenuMasterSchema);
 
 export default MenuMaster;

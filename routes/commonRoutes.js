@@ -141,21 +141,19 @@ function applyFilters(query, filters = {}, currentUser = {}) {
   }
 }
 
-function getCloudinaryPrivateURL(public_id){
-  if(public_id === ""){
-    return ""
-  }
-  else{
+function getCloudinaryPrivateURL(public_id) {
+  if (public_id === "") {
+    return "";
+  } else {
     const signedUrl = cloudinary.url(public_id, {
       type: "authenticated",
       sign_url: true,
       secure: true,
       expires_at: Math.floor(Date.now() / 1000) + 3600,
     });
-    
+
     return signedUrl;
   }
-  
 }
 
 function mapUsers(users) {
@@ -207,8 +205,13 @@ async function fetchUserImages(imageIds) {
 
 commonRoutes.post("/user-login", async (req, res) => {
   try {
-    const { userEmail, userPassword } = req.body;
-    const user = await UserBase.findOne({ userEmail });
+    const { phoneNumber, userPassword } = req.body;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const query = emailRegex.test(phoneNumber)
+      ? { userEmail: phoneNumber }
+      : { phoneNumber: phoneNumber };
+
+    const user = await UserBase.findOne(query);
 
     if (!user) {
       return res
@@ -295,7 +298,7 @@ commonRoutes.post(
         incomeGroup: 1,
         addressInShort: 1,
         community: 1,
-        image:1,
+        image: 1,
         isVerified: 1,
         __t: 1,
       };
@@ -321,7 +324,6 @@ commonRoutes.post(
 
       query.isVerified = true;
       query.isEmailVerified = true;
-      query.isPhoneVerified = true;
 
       if (req.user.__t === "candidate") {
         applyFilters(query, filters, currentUser);
@@ -392,8 +394,8 @@ commonRoutes.post(
       // const { files, fileChunksMap } = await fetchUserImages(imageIds);
       const finalDataList = mapUsers(users);
 
-      console.log(users)
-      console.log("usersusersusersusersusersusersusersusersusersusers")
+      console.log(users);
+      console.log("usersusersusersusersusersusersusersusersusersusers");
       res.json({
         message: "Success",
         users: finalDataList,
@@ -582,8 +584,8 @@ commonRoutes.get(
       //     };
       //   })
       // );
-      console.log("finalData")
-      console.log(finalData)
+      console.log("finalData");
+      console.log(finalData);
       return res.status(200).json({
         message: "success",
         data: finalData,
@@ -732,8 +734,8 @@ commonRoutes.get(
       const paymentInfo = await PaymentBase.findOne({
         userEmail: req.user.userEmail,
       }).sort({ createdAt: -1 });
-      console.log("paymentInfo")
-      console.log(paymentInfo)
+      console.log("paymentInfo");
+      console.log(paymentInfo);
       let emailIdString = "Buy Our Services For Contact Information";
       let contactNumberString = "Buy Our Services For Contact Information";
       let paymentPlan = "None";
@@ -741,7 +743,7 @@ commonRoutes.get(
       const localTimezone = "Asia/Kolkata";
       const now = moment().tz(localTimezone);
 
-      if(req.user.__t === "owner"){
+      if (req.user.__t === "owner" || req.user.__t === "admin") {
         emailIdString = data.userEmail;
         contactNumberString = data.phoneNumber;
       }
@@ -788,7 +790,7 @@ commonRoutes.get(
           __t: "admin",
           referenceCode: data.referenceCode,
         });
-        finalData.referenceName =   adminData
+        finalData.referenceName = adminData
           ? `${adminData.firstName} ${adminData.lastName}`
           : "NA";
       } else {
@@ -820,9 +822,7 @@ commonRoutes.get(
       //   })
       // );
 
-      return res
-        .status(200)
-        .json({ message: "success", data: finalData });
+      return res.status(200).json({ message: "success", data: finalData });
     } catch (error) {
       console.error(error);
       return res.status(500).json({ message: "failure", data: error.message });
@@ -846,42 +846,50 @@ commonRoutes.post("/add-new-candidate", async (req, res) => {
 
     const user = await UserBase.findOne({ userEmail: userEmail });
     if (!user) {
-      const hashedPassword = await bcrypt.hash(userPassword, 10);
-      const newCandidate = await Candidate.create({
-        firstName: firstName,
-        lastName: lastName,
-        userEmail: userEmail,
-        userPassword: hashedPassword,
-        phoneNumber: phoneNumber,
-        referenceCode: referenceCode,
-        lookingFor: lookingFor,
-        choosingFor: choosingFor,
-        readTCP: readTCP,
-      });
-      const payload = {
-        _id: newCandidate._id,
-        userEmail: userEmail,
-        __t: "candidate",
-      };
+      const allRefCodes = await Admin.distinct("referenceCode");
 
-      const token = jwt.sign(payload, process.env.JWT_SECRET, {
-        expiresIn: "1d",
-      });
+      if (!allRefCodes.includes(referenceCode)) {
+        return res
+          .status(400)
+          .json({ message: "failure", data: "Invalid Reference Code." });
+      } else {
+        const hashedPassword = await bcrypt.hash(userPassword, 10);
+        const newCandidate = await Candidate.create({
+          firstName: firstName,
+          lastName: lastName,
+          userEmail: userEmail,
+          userPassword: hashedPassword,
+          phoneNumber: phoneNumber,
+          referenceCode: referenceCode,
+          lookingFor: lookingFor,
+          choosingFor: choosingFor,
+          readTCP: readTCP,
+        });
+        const payload = {
+          _id: newCandidate._id,
+          userEmail: userEmail,
+          __t: "candidate",
+        };
 
-      await UserBase.findByIdAndUpdate(newCandidate._id, {
-        accessToken: token,
-      });
+        const token = jwt.sign(payload, process.env.JWT_SECRET, {
+          expiresIn: "1d",
+        });
 
-      res.cookie("token", token, {
-        httpOnly: true, // Prevent access from JavaScript (security)
-        secure: true, // Use HTTPS (for production)
-        sameSite: "None", // Prevent CSRF attacks
-        // sameSite: "Lax", // For localhost
-        maxAge: 24 * 60 * 60 * 1000,
-      });
-      return res
-        .status(200)
-        .json({ message: "success", data: "Profile created successfully" });
+        await UserBase.findByIdAndUpdate(newCandidate._id, {
+          accessToken: token,
+        });
+
+        res.cookie("token", token, {
+          httpOnly: true, // Prevent access from JavaScript (security)
+          secure: true, // Use HTTPS (for production)
+          sameSite: "None", // Prevent CSRF attacks
+          // sameSite: "Lax", // For localhost
+          maxAge: 24 * 60 * 60 * 1000,
+        });
+        return res
+          .status(200)
+          .json({ message: "success", data: "Profile created successfully" });
+      }
     } else {
       return res
         .status(200)

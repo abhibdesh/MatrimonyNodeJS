@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { sutabandhanConnection } from "../dbConnections.js";
 
 const DistrictMasterSchema = new mongoose.Schema(
   {
@@ -10,6 +11,6 @@ const DistrictMasterSchema = new mongoose.Schema(
 
 );
 
-const DistrictMaster = mongoose.model("DistrictMaster", DistrictMasterSchema);
+const DistrictMaster = sutabandhanConnection.model("DistrictMaster", DistrictMasterSchema);
 
 export default DistrictMaster;
