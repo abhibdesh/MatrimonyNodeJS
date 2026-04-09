@@ -1,62 +1,77 @@
-# Matrimony Backend with Tamper Evident Audit Chains
+# Matrimony Backend with Tamper-Evident Audit Chains
+
+A cryptographically verifiable backend system designed to make human approvals tamper-evident, non-repudiable, and audit-proof.
+
+---
+
+## Context
+
+This repository is a simplified and self-contained representation of a production-grade system designed to address data integrity and non-repudiation challenges in approval workflows.
+
+The core design reflects real-world requirements where auditability, fraud resistance, and traceability are critical.
+
+---
 
 ## Overview
 
-This project is a backend system for a matrimonial trust verification platform designed to ensure non repudiable and tamper evident human approvals.
+This system implements a backend for a matrimonial trust verification platform where every approval decision is cryptographically secured and linked in an immutable audit chain.
 
-It implements a cryptographic accountability layer where every approval decision is:
+Each approval is:
 
 * Signed by the human approver
-* Independently co signed by the system
-* Stored in a hash linked audit chain
+* Co-signed by the system
+* Linked via a hash chain
 
-The system is based on the Silvbak framework, a consensus free dual attestation architecture for human driven workflows.
+This ensures that every decision is independently verifiable and tamper-evident.
+
+The design is based on the **Silvbak framework**, a consensus-free dual attestation architecture for human-driven workflows.
 
 ---
 
 ## Problem
 
-Traditional backend systems store approvals as database records.
-
-This creates critical issues:
+Traditional backend systems store approvals as mutable database records, leading to critical weaknesses:
 
 * Approvals can be modified or deleted
-* No cryptographic link between decision and human
-* Fraud investigation requires months of forensic reconstruction
+* No cryptographic binding between decision and approver
+* Lack of traceability and audit guarantees
+* Fraud investigations require extensive reconstruction
 
-Real world failures such as banking frauds and identity scams stem from this exact weakness.
+These issues are common in financial fraud and identity verification systems.
 
 ---
 
 ## Solution
 
-This system introduces:
+This system introduces a cryptographic accountability layer with:
 
 * Cryptographic identity for each approver
 * Dual attestation for every approval
-* Hash linked audit chains
-* Idempotency based replay protection
-* Concurrency safe chain updates
+* Hash-linked audit chains
+* Idempotency-based replay protection
+* Concurrency-safe chain updates
 
 Every approval becomes:
 
-* Tamper evident
-* Non repudiable
+* Tamper-evident
+* Non-repudiable
 * Independently verifiable
 
 ---
 
 ## Architecture
 
-Approval Flow:
+The system follows a layered processing pipeline:
 
-Client Request
-→ Node.js Backend
-→ Approval Engine
-→ Cryptographic Signing
-→ Hash Chain Append
-→ Global Audit Chain
-→ Database
+* API Layer: Handles request validation and routing
+* Approval Engine: Executes business logic and concurrency control
+* Cryptographic Layer: Performs signing and hashing
+* Audit Chain Layer: Maintains hash-linked records
+* Persistence Layer: Stores approval data
+
+Flow:
+
+Client → API → Approval Engine → Cryptographic Layer → Audit Chain → Database
 
 ---
 
@@ -64,37 +79,37 @@ Client Request
 
 ### Dual Attestation
 
-Each approval is signed twice:
+Each approval is signed using two independent signatures:
 
-* Admin signature using RSA PSS
-* System signature using RSA PSS
+* Admin signature using RSA-PSS
+* System signature using RSA-PSS
 
-Both must be valid for the record to exist.
+Both signatures must be valid for the record to be accepted.
 
 This ensures:
 
-* No single actor can forge or modify approvals
-* Any tampering breaks signature verification
+* No single actor can forge approvals
+* Any modification invalidates verification
 
 ---
 
-### Hash Linked Chains
+### Hash-Linked Chains
 
 Each approver maintains a daily chain:
 
-* First record starts from GENESIS
-* Each record links to previous hash
+* First record starts from a genesis state
+* Each record links to the previous hash
 * Any modification breaks the chain
 
-A global chain connects all approvals across the system.
+A global chain connects all approvals across the system, ensuring full traceability.
 
 ---
 
 ### Envelope Encryption
 
-* Private keys are encrypted using AES 256 GCM
+* Private keys are encrypted using AES-256-GCM
 * Keys are decrypted only in memory during signing
-* Never stored in plaintext
+* Keys are never stored in plaintext
 
 This ensures secure key lifecycle management.
 
@@ -102,42 +117,42 @@ This ensures secure key lifecycle management.
 
 ## Concurrency Handling
 
-Concurrency is handled using a compare and swap pattern on the chain state.
+Concurrency control is implemented using an optimistic locking (compare-and-swap) strategy on the audit chain state.
 
-* Each approval reads the latest hash
-* Update succeeds only if hash matches
-* If mismatch occurs, transaction retries with jitter
+* Each approval reads the latest chain hash
+* Update succeeds only if the hash matches
+* On mismatch, the transaction retries with jitter
 
-This guarantees:
+This ensures:
 
-* Strict ordering of approvals
+* Linearizable updates to the audit chain
 * No duplicate or conflicting entries
-* No chain forks
+* No chain forks under concurrent access
 
-In real testing:
+Observed behavior:
 
 * Zero retry conflicts under normal load
-* Stable performance with concurrent users
+* Stable performance under concurrent users
 
 ---
 
 ## Load Handling and Performance
 
-System was tested using k6 load testing.
+System tested using k6 load testing.
 
 Results:
 
 * 1785 approvals processed in 2 minutes
-* 5 concurrent admins achieved approximately 14.8 approvals per second
-* Median latency around 36 milliseconds
-* No performance degradation compared to baseline
+* ~14.8 approvals per second with 5 concurrent users
+* Median latency: ~36 ms
+* No degradation compared to baseline
 
 Cryptographic overhead:
 
-* Around 6 milliseconds per request
-* Negligible impact on system performance
+* ~6 ms per request
+* Negligible impact on throughput
 
-This demonstrates that strong cryptographic guarantees can be achieved without sacrificing throughput.
+This demonstrates that strong cryptographic guarantees can be achieved without sacrificing performance.
 
 ---
 
@@ -148,16 +163,25 @@ The system protects against:
 * Database compromise
 * Replay attacks
 * Retroactive forgery
-* Admin collusion
 * Record tampering
+* Unauthorized modifications
 
 Tampering scenarios:
 
 * Payload modification → signature invalid
-* Record deletion → chain breaks
+* Record deletion → chain integrity breaks
 * Record insertion → hash mismatch
 
-All attacks are either prevented or immediately detectable.
+All inconsistencies are either prevented or immediately detectable.
+
+---
+
+## Failure Handling
+
+* Invalid or partial updates are rejected through chain validation
+* Transactions retry on concurrency conflicts with jitter
+* Signature validation ensures corrupted data is not accepted
+* Chain integrity guarantees detection of inconsistent state
 
 ---
 
@@ -165,41 +189,52 @@ All attacks are either prevented or immediately detectable.
 
 * Node.js
 * MongoDB
-* Crypto module (RSA PSS, AES 256 GCM, SHA 256)
+* Crypto module (RSA-PSS, AES-256-GCM, SHA-256)
 * k6 for load testing
-
----
-
----
-
-## Why This Project Matters
-
-This is not just a CRUD backend.
-
-It demonstrates:
-
-* Designing tamper evident systems
-* Applying cryptography in real applications
-* Handling concurrency in distributed workflows
-* Building audit systems with zero reconstruction
 
 ---
 
 ## Limitations
 
-* System keys stored in environment variables
-* No hardware security module integration
-* Monolithic deployment
+* Key management relies on environment variables (no HSM integration)
+* Monolithic deployment (no service isolation)
+* No distributed consensus across multiple nodes
+* Chain storage depends on database persistence
 
-Future work includes extracting this into a standalone Go service with full isolation.
+These trade-offs were made to balance system complexity and performance.
+
+---
+
+## Future Improvements
+
+* Integration with Hardware Security Modules (HSM)
+* Extraction into a dedicated Go-based verification service
+* Distributed audit chain validation
+* Append-only storage for stronger immutability guarantees
+
+---
+
+## Why This Project Matters
+
+This system demonstrates:
+
+* Designing tamper-evident backend systems
+* Applying cryptographic primitives in real workflows
+* Handling concurrency in integrity-critical systems
+* Eliminating the need for forensic audit reconstruction
 
 ---
 
 ## Key Takeaways
 
 * Built a cryptographically verifiable approval system
-* Eliminated need for forensic audit reconstruction
-* Achieved strong security guarantees with minimal overhead
-* Designed for real world fraud resistant workflows
+* Ensured non-repudiation and tamper evidence
+* Achieved high performance with minimal cryptographic overhead
+* Designed for fraud-resistant, real-world workflows
 
 ---
+
+## Author
+
+Abhilasha Deshmukh
+Backend Engineer
